@@ -18,8 +18,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from assistant.ai.model_selector import select_model
 from assistant.cloud.usage_tracker import UsageTracker
+from assistant.storage.memory import ConversationMemory
 from assistant.ui.audio_worker import AudioWorker
+from assistant.ui.settings_dialog import SettingsDialog
 from assistant.ui.system_tray import SystemTray
 from assistant.ui.worker import TaskWorker
 
@@ -45,6 +48,7 @@ class MainWindow(QMainWindow):
         self.last_response = ""
         self.last_detected_language = "pt"
         self.queued_speech = ""
+        self.force_offline = force_offline
         self.pending_confirmation = None
         self.confirmation_box = None
         self.exiting = False
@@ -77,6 +81,11 @@ class MainWindow(QMainWindow):
         )
         options.addWidget(self.cloud)
         options.addWidget(self.simulation)
+        self.model_choice = QComboBox()
+        self.model_choice.addItem("Modelo principal", False)
+        if settings.secondary_model_id:
+            self.model_choice.addItem("Modelo alternativo", True)
+        options.addWidget(self.model_choice)
         options.addStretch()
         self.clear_button = QPushButton("Limpar conversa")
         options.addWidget(self.clear_button)
@@ -164,6 +173,8 @@ class MainWindow(QMainWindow):
         stop_action.triggered.connect(self.stop_task)
         self.addAction(stop_action)
         menu = self.menuBar().addMenu("Aplicativo")
+        self.settings_action = menu.addAction("Configurações…", self.open_settings)
+        self.forget_action = menu.addAction("Apagar contexto guardado", self.forget_memory)
         menu.addAction("Sair", self.request_exit)
 
         self.tray = None
@@ -196,6 +207,9 @@ class MainWindow(QMainWindow):
         self.speak_button.setEnabled(not busy and not self.exiting)
         self.language.setEnabled(not busy and not self.exiting)
         self.read_responses.setEnabled(not busy and not self.exiting)
+        self.model_choice.setEnabled(not busy and not self.exiting)
+        self.settings_action.setEnabled(not busy and not self.exiting)
+        self.forget_action.setEnabled(not busy and not self.exiting)
         self.wake_button.setEnabled((not busy or self.worker_kind == "wake") and not self.exiting)
         self.wake_button.setText("Parar escuta" if self.worker_kind == "wake" else "Ativar escuta")
         if self.tray is not None:
@@ -225,7 +239,10 @@ class MainWindow(QMainWindow):
             return
         self.append_message("Você", text)
         self.command.clear()
-        settings = replace(self.settings, cloud_enabled=self.cloud.isChecked())
+        settings = select_model(
+            replace(self.settings, cloud_enabled=self.cloud.isChecked()),
+            self.model_choice.currentData(),
+        )
         self.worker = self.worker_factory(
             text, settings, self.database_path, self.simulation.isChecked(), parent=self
         )
@@ -325,6 +342,39 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def show_error(self, text):
         self.append_message("Erro", text)
+
+    @Slot()
+    def open_settings(self):
+        if self.worker is not None:
+            return
+        dialog = SettingsDialog(self.settings, self)
+        if dialog.exec() and dialog.saved_settings is not None:
+            self.settings = dialog.saved_settings
+            self.cloud.setChecked(self.settings.cloud_enabled and not self.force_offline)
+            self.read_responses.setChecked(self.settings.voice_enabled)
+            self.model_choice.clear()
+            self.model_choice.addItem("Modelo principal", False)
+            if self.settings.secondary_model_id:
+                self.model_choice.addItem("Modelo alternativo", True)
+            if not self.settings.memory_enabled:
+                self.forget_memory()
+            self.append_message(
+                "Configuração",
+                "Configurações salvas. Variáveis do ambiente/.env têm prioridade ao reiniciar.",
+            )
+
+    @Slot()
+    def forget_memory(self):
+        if self.worker is not None:
+            return
+        memory = ConversationMemory(self.database_path)
+        try:
+            memory.clear()
+        finally:
+            memory.close()
+        self.append_message(
+            "Privacidade", "Contexto guardado apagado. O registro de consumo foi preservado."
+        )
 
     @Slot(int, float)
     def update_usage(self, count, cost):

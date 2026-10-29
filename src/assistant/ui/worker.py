@@ -7,6 +7,7 @@ from assistant.ai.bedrock_provider import BedrockProvider
 from assistant.cloud.usage_tracker import UsageTracker
 from assistant.core.action_executor import ActionExecutor
 from assistant.core.orchestrator import Orchestrator
+from assistant.storage.memory import ConversationMemory
 from assistant.tools.windows import WindowsTools, automation_context
 
 
@@ -63,14 +64,21 @@ class TaskWorker(QThread):
 
     def run(self):
         tracker = None
+        memory = None
         try:
             tracker = UsageTracker(self.database_path)
+            if self.settings.memory_enabled:
+                memory = ConversationMemory(
+                    self.database_path,
+                    self.settings.memory_retention_days,
+                    self.settings.memory_max_turns,
+                )
             with automation_context():
                 executor = ActionExecutor(
                     self.backend_factory(), self.confirm, self.dry_run, self.cancelled
                 )
                 provider = self.provider_factory(self.settings, tracker)
-                assistant = Orchestrator(executor, provider, self.settings.max_tool_rounds)
+                assistant = Orchestrator(executor, provider, self.settings.max_tool_rounds, memory)
                 output = assistant.run(self.text)
                 if self.cancelled.is_set():
                     raise InterruptedError("Tarefa interrompida / Task interrupted.")
@@ -80,6 +88,8 @@ class TaskWorker(QThread):
         except Exception as exc:
             self.failed.emit(str(exc))
         finally:
+            if memory is not None:
+                memory.close()
             if tracker is not None:
                 try:
                     count, cost = tracker.summary()

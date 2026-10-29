@@ -5,13 +5,20 @@ from assistant.tools.registry import validate
 
 
 class Orchestrator:
-    def __init__(self, executor, provider, max_rounds=5):
+    def __init__(self, executor, provider, max_rounds=5, memory=None):
         self.router = IntentRouter()
         self.executor = executor
         self.provider = provider
         self.max_rounds = max_rounds
+        self.memory = memory
 
     def run(self, text):
+        result = self._run(text)
+        if self.memory is not None and text.strip() and not self.executor.cancelled.is_set():
+            self.memory.remember(text, result)
+        return result
+
+    def _run(self, text):
         self.executor.begin_task()
         if not text.strip():
             return "Digite um comando / Enter a command."
@@ -33,7 +40,8 @@ class Orchestrator:
                     output += "\n\nTítulos e links; as páginas de destino não foram lidas."
                 formatted.append(output)
             return "\n".join(formatted)
-        messages = [{"role": "user", "content": [{"text": text}]}]
+        messages = self.memory.messages() if self.memory is not None else []
+        messages.append({"role": "user", "content": [{"text": text}]})
         for _ in range(self.max_rounds):
             if self.executor.cancelled.is_set():
                 raise InterruptedError("Task interrupted.")
