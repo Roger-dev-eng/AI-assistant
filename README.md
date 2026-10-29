@@ -12,7 +12,7 @@ Windows. O estado da validação está em [docs/IMPLEMENTATION.md](docs/IMPLEMEN
 ## Executável e instalação
 
 O build gera `dist/AssistantDesktop/AssistantDesktop.exe` (aplicativo portátil, com
-toda a pasta ao lado) e `dist/installer/AssistantDesktop-0.2.1-Setup.exe` (instalador
+toda a pasta ao lado) e `dist/installer/AssistantDesktop-0.3.0-Setup.exe` (instalador
 por usuário, sem privilégios de administrador). O instalador oferece atalhos e
 desinstalação; a configuração inicial oferece início com Windows desmarcado por padrão. Modelos e credenciais
 não são distribuídos. A primeira abertura mostra a configuração inicial; o microfone
@@ -37,6 +37,31 @@ Chromium headless é incluído pelo build; modelos de voz/transcrição não sã
 Consulte [packaging/THIRD_PARTY.md](packaging/THIRD_PARTY.md) para componentes/licenças.
 O código-fonte da versão acompanha a entrega em arquivo separado. Os binários
 gerados localmente não têm assinatura digital do publicador.
+
+## Atualizações e publicação
+
+**Aplicativo → Verificar atualizações** consulta as versões estáveis em
+[GitHub Releases](https://github.com/Roger-dev-eng/AI-assistant/releases).
+Após confirmação, o aplicativo baixa o instalador oficial, verifica tamanho e
+SHA-256 publicado pelo GitHub, fecha, atualiza a mesma pasta e reabre. Configurações,
+modelos, consumo e credenciais são preservados. Não instala outro aplicativo.
+Versões anteriores à 0.3.0 precisam desta atualização manual uma única vez.
+
+A consulta só acontece ao abrir a opção. Não usa credenciais AWS nem token GitHub.
+Downloads podem ser cancelados. Erros preservam o app aberto ou reabrem a instalação;
+logs ficam em `%LOCALAPPDATA%/AssistantDesktop/updates`. A atualização automática
+requer a versão instalada, Windows com permissão para executar o instalador e o
+helper PowerShell. Políticas de assinatura/execução não são alteradas.
+
+GitHub Actions executa Ruff e pytest em pushes e pull requests. A publicação de
+uma tag `vX.Y.Z` executa novamente essa validação e só depois gera o executável,
+verifica o diagnóstico sem AWS/microfone, compila e publica instalador, fontes e
+hashes em Releases. O instalador `.exe` usa Releases; GitHub Packages é um registro
+de pacotes de ecossistemas e não o canal de atualização deste aplicativo.
+
+Para publicar, atualize as versões em `pyproject.toml` e `packaging/windows.iss`,
+faça commit/push e publique a tag correspondente. O workflow também permite
+`workflow_dispatch` para produzir artefatos sem publicar uma versão oficial.
 
 ## Configuração, memória e modelos
 

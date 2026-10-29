@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtGui import QAction, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -25,6 +25,7 @@ from assistant.ui.audio_worker import AudioWorker
 from assistant.ui.settings_dialog import SettingsDialog
 from assistant.ui.sonic_worker import SonicWorker
 from assistant.ui.system_tray import SystemTray
+from assistant.ui.update_dialog import UpdateDialog
 from assistant.ui.worker import TaskWorker
 
 
@@ -47,6 +48,7 @@ class MainWindow(QMainWindow):
         self.audio_worker_factory = audio_worker_factory
         self.sonic_worker_factory = sonic_worker_factory
         self.sonic_wake = False
+        self.update_dialog = None
         self.worker = None
         self.worker_kind = None
         self.last_response = ""
@@ -188,6 +190,7 @@ class MainWindow(QMainWindow):
         menu = self.menuBar().addMenu("Aplicativo")
         self.settings_action = menu.addAction("Configurações…", self.open_settings)
         self.forget_action = menu.addAction("Apagar contexto guardado", self.forget_memory)
+        self.update_action = menu.addAction("Verificar atualizações…", self.open_updates)
         menu.addAction("Sair", self.request_exit)
 
         self.tray = None
@@ -213,7 +216,7 @@ class MainWindow(QMainWindow):
     def set_busy(self, busy):
         self.command.setEnabled(not busy and not self.exiting)
         self.send_button.setEnabled(not busy and not self.exiting)
-        self.stop_button.setEnabled(busy and not self.exiting)
+        self.stop_button.setEnabled(busy and self.update_dialog is None and not self.exiting)
         self.cloud.setEnabled(not busy and not self.force_offline and not self.exiting)
         self.simulation.setEnabled(not busy and not self.exiting)
         self.record_button.setEnabled(not busy and not self.exiting)
@@ -224,6 +227,7 @@ class MainWindow(QMainWindow):
         self.model_choice.setEnabled(not busy and not self.exiting)
         self.settings_action.setEnabled(not busy and not self.exiting)
         self.forget_action.setEnabled(not busy and not self.exiting)
+        self.update_action.setEnabled(not busy and not self.exiting)
         self.wake_button.setEnabled(
             (not busy or self.worker_kind == "wake" or self.sonic_wake) and not self.exiting
         )
@@ -242,7 +246,27 @@ class MainWindow(QMainWindow):
             self.tray.set_microphone_active(active)
 
     @Slot()
+    def open_updates(self):
+        if self.worker is not None or self.exiting or self.update_dialog is not None:
+            return
+        dialog = UpdateDialog(self)
+        self.update_dialog = dialog
+        dialog.install_ready.connect(self.request_exit)
+        dialog.finished.connect(self.updates_closed)
+        self.set_busy(True)
+        dialog.exec()
+
+    @Slot(int)
+    def updates_closed(self, result):
+        self.update_dialog = None
+        self.set_busy(False)
+        if self.exiting:
+            QTimer.singleShot(0, self.request_exit)
+
+    @Slot()
     def toggle_wake(self):
+        if self.update_dialog is not None:
+            return
         if self.worker_kind == "wake" or self.sonic_wake:
             self.stop_task()
         elif self.speech_choice.currentData() == "sonic":
@@ -542,6 +566,9 @@ class MainWindow(QMainWindow):
     @Slot()
     def request_exit(self):
         self.exiting = True
+        if self.update_dialog is not None:
+            self.update_dialog.reject()
+            return
         if self.worker is not None:
             self.stop_task()
             self.set_busy(True)
@@ -550,6 +577,10 @@ class MainWindow(QMainWindow):
             self.close()
 
     def closeEvent(self, event):
+        if self.update_dialog is not None:
+            self.request_exit()
+            event.ignore()
+            return
         if self.tray is not None and not self.exiting:
             self.hide_to_tray()
             event.ignore()

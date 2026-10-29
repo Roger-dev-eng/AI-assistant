@@ -2,6 +2,17 @@
 
 Validado em 29/10/2026, Windows x64 e Python 3.12.14.
 
+## Atualização 0.3.0 — Actions, Releases e atualização pelo aplicativo
+
+- Inclui a correção do evento de gravação Sonic da versão 0.2.1.
+- Novos testes de atualização cobrem metadados, versões, URLs, cancelamento,
+  corrupção de arquivos, revalidação antes da instalação e fluxo da interface.
+- Por solicitação do usuário, os novos testes serão executados no GitHub Actions;
+  a suíte não foi repetida localmente após essa solicitação.
+- Publicação oficial exige os testes e o diagnóstico do executável no runner.
+- Atualização real entre duas versões instaladas permanece uma validação externa;
+  nenhum teste instala, encerra ou altera a cópia em uso do usuário.
+
 ## Correção 0.2.1 — início da gravação Sonic
 
 - Inicializa o evento `recording_finished` no `SonicWorker`, corrigindo o erro

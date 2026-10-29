@@ -22,6 +22,7 @@ class SystemTray(QSystemTrayIcon):
         self.listen_action.setText("Parar escuta" if listening else "Ativar escuta")
         self.listen_action.setEnabled(
             not self.window.exiting
+            and self.window.update_dialog is None
             and (
                 self.window.worker is None
                 or (listening and not self.window.worker.cancelled.is_set())

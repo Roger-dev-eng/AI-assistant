@@ -1,14 +1,31 @@
 name: Tests
-on: [push, pull_request]
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   core:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install -e ".[dev,desktop,browser,voice,windows,sonic]"
+          cache: pip
+          cache-dependency-path: requirements-windows.lock
+      - run: |
+          python -m pip install -r requirements-windows.lock
+          python -m pip install --no-deps -e .
       - run: python -m playwright install chromium
       - run: python -m ruff check src tests
-      - run: python -m pytest -q
+      - run: python -m pytest -q --junitxml=test-results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: automated-test-results
+          path: test-results.xml

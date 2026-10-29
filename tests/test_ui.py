@@ -78,6 +78,34 @@ def test_sonic_result_does_not_queue_piper(make_window):
     assert not window.queued_speech
 
 
+def test_update_dialog_downloads_then_hands_off_after_worker_finishes(app, tmp_path):
+    from assistant.ui.update_dialog import UpdateDialog
+    from assistant.updates import Release
+
+    release = Release("0.3.0", "AssistantDesktop-0.3.0-Setup.exe", "", "", 10)
+    installer = tmp_path / release.name
+    ready = Mock()
+    with (
+        patch("assistant.ui.update_dialog.update_directory", return_value=tmp_path),
+        patch("assistant.ui.update_dialog.check_update", return_value=release),
+        patch("assistant.ui.update_dialog.installed_executable"),
+        patch("assistant.ui.update_dialog.download_update", return_value=installer) as download,
+        patch("assistant.ui.update_dialog.start_install") as install,
+        patch("assistant.ui.update_dialog.QMessageBox.question",
+              return_value=QMessageBox.StandardButton.Yes),
+    ):
+        dialog = UpdateDialog()
+        dialog.install_ready.connect(ready)
+        dialog.show()
+        wait_until(app, lambda: dialog.job is None and dialog.release is not None)
+        dialog.download()
+        wait_until(app, lambda: ready.called)
+        assert dialog.job is None
+        download.assert_called_once()
+        install.assert_called_once_with(release, installer, tmp_path)
+        dialog.deleteLater()
+
+
 def test_simulated_task_keeps_ui_responsive(app, make_window):
     window = make_window(dry_run=True, force_offline=True)
     submit(window, "Abra o Chrome")
