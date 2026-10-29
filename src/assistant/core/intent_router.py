@@ -68,6 +68,14 @@ class IntentRouter:
             return [Action("close_app", {"app": APPS[match[1]]})]
         # Capture query from original text to preserve accents, case and punctuation.
         match = re.fullmatch(
+            r"(?:liste resultados de|list results for)\s+(.+?)\s+(?:no|na|on)\s+"
+            r"(google|youtube)[.!?]?",
+            text.strip(),
+            re.IGNORECASE,
+        )
+        if match:
+            return [Action("read_search_results", {"query": match[1], "engine": match[2].lower()})]
+        match = re.fullmatch(
             r"(?:pesquise|pesquisa|busque|search)(?:\s+(?:por|for))?\s+(.+?)"
             r"\s+(?:no|na|on)\s+(google|youtube)[.!?]?",
             text.strip(),

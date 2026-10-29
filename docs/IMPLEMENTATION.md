@@ -30,8 +30,15 @@ O primeiro marco é a prova de conceito no terminal descrita na seção 7.
    Saída aguarda a thread terminar; nenhuma thread é encerrada à força. Modos
    offline e simulação são visíveis, e respostas são exibidas como texto simples.
    Testes cobrem envio, erro, confirmação/negativa, interrupção e encerramento.
-2. Playwright: navegador gerenciado e leitura de resultados. O núcleo atual apenas
-   abre sites e buscas no navegador padrão; não escolhe o resultado mais relevante.
+2. **Implementado — Playwright:** leitura de até cinco títulos/links do Google e do
+   YouTube em Chromium isolado, descartado ao finalizar. Seleção pelo modelo usando
+   IDs de resultados da tarefa, com confirmação mostrando o destino antes de abrir
+   no navegador padrão. Testes com Chromium e páginas locais validam leitura e
+   filtragem; um provedor simulado valida a sequência buscar → selecionar → confirmar
+   → abrir. Avaliação de relevância com o modelo real continua pendente.
+   Busca real no YouTube validada, retornando cinco vídeos. Busca real no Google
+   atingiu timeout sem resultados; CAPTCHA/consentimento ou mudanças de layout podem
+   impedir a leitura. Não houve chamada à AWS nem abertura de um resultado real.
 3. faster-whisper e Piper: microfone com ativação explícita, seleção de idioma,
    modelos locais e saída de voz. Não baixar modelos sem informar tamanho/licença.
 4. Palavra de ativação e operação em segundo plano com indicação de microfone ativo.
@@ -43,8 +50,16 @@ O primeiro marco é a prova de conceito no terminal descrita na seção 7.
 
 O modelo não recebe ferramenta de shell, caminhos arbitrários ou URLs livres.
 Somente Chrome, Notepad e Calculator podem ser abertos/fechados; somente Google,
-YouTube e GitHub podem ser abertos diretamente. Consultas são codificadas na URL.
+YouTube e GitHub podem ser abertos diretamente. Resultados externos só são abertos
+por IDs de busca válidos e confirmação explícita. Consultas são codificadas na URL.
 Fechamento solicita WM_CLOSE e preserva eventuais diálogos de salvamento.
+
+O navegador gerenciado não compartilha perfil/cookies com o usuário, bloqueia service
+workers, downloads e requisições fora dos domínios necessários à busca. Não lê páginas
+de destino, não autentica contas e não contorna CAPTCHA/consentimento. Links de
+resultados são validados como HTTPS público, com checagem DNS antes de abrir; isso
+não controla redirecionamentos ou DNS do navegador padrão. Conteúdo dos resultados
+é limitado e tratado como dado não confiável no prompt e na interface.
 
 Uma negativa interrompe o plano. Ctrl+C impede ações seguintes, mas não desfaz
 ações concluídas e pode não interromper uma requisição de rede em andamento.
@@ -69,3 +84,5 @@ necessários. Não houve provisionamento AWS nem alteração do perfil neste mar
 - [pycaw: volume do dispositivo](https://github.com/AndreMiras/pycaw/blob/develop/examples/audio_endpoint_volume_example.py)
 - [Qt: threads e objetos](https://doc.qt.io/qtforpython-6.10/overviews/qtdoc-threads-qobject.html)
 - [Qt: bandeja do sistema](https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QSystemTrayIcon.html)
+- [Playwright: contextos isolados e interceptação](https://playwright.dev/python/docs/api/class-browsercontext)
+- [Playwright: leitura por locators](https://playwright.dev/python/docs/locators)

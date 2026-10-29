@@ -9,6 +9,14 @@ class ActionExecutor:
         self.confirm = confirm
         self.dry_run = dry_run
         self.cancelled = cancelled or Event()
+        bind = getattr(type(backend), "bind_cancellation", None)
+        if bind is not None:
+            bind(backend, self.cancelled)
+
+    def begin_task(self):
+        reset = getattr(type(self.backend), "reset_task", None)
+        if reset is not None:
+            reset(self.backend)
 
     def execute(self, action):
         tool = validate(action.name, action.arguments)
@@ -17,6 +25,8 @@ class ActionExecutor:
         description = f"{action.name} {action.arguments}"
         if self.dry_run:
             return f"SIMULATION: {description}"
+        if action.name == "open_search_result":
+            description = self.backend.describe_result(action.arguments["result_id"])
         # High volume also requires explicit approval, regardless of the source of the action.
         sensitive = tool.confirmation or (
             action.name == "set_volume" and action.arguments["percent"] > 70

@@ -195,7 +195,7 @@ class MainWindow(QMainWindow):
         box.setTextFormat(Qt.TextFormat.PlainText)
         box.setText(
             f"Permitir esta ação?\n\n{request.description}\n\n"
-            "Fechar aplicativos pode afetar trabalho não salvo."
+            "Revise o destino e os efeitos antes de confirmar."
         )
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.No)

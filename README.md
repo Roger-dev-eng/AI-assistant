@@ -2,7 +2,7 @@
 
 Assistente híbrido em português e inglês. Comandos conhecidos executam localmente;
 solicitações que exigem interpretação podem usar Amazon Bedrock. Esta versão inclui
-o núcleo no terminal e uma interface PySide6 com bandeja, confirmação e interrupção.
+o núcleo no terminal, interface PySide6 e leitura de buscas com Playwright.
 Voz, palavra de ativação e instalador estão nos próximos marcos de
 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
 
@@ -17,8 +17,42 @@ py -3.12 -m venv .venv
 Copy-Item .env.example .env
 ```
 
-Os extras `voice` e `browser` reservam as dependências das próximas fases;
-instalá-los ainda não habilita essas funcionalidades.
+O extra `voice` reserva as dependências da próxima fase; instalá-lo ainda não
+habilita reconhecimento ou resposta por voz.
+
+## Buscas com Playwright
+
+```powershell
+.\.venv\Scripts\python -m pip install -e ".[browser]"
+.\.venv\Scripts\python -m playwright install chromium
+.\.venv\Scripts\python -m assistant --offline "liste resultados de Python no Google"
+.\.venv\Scripts\python -m assistant --offline "list results for Python tutorials on YouTube"
+```
+
+`--offline` bloqueia a AWS; buscas ainda precisam de acesso à internet. Comandos
+simples como `pesquise Python no Google` continuam abrindo o navegador padrão.
+`liste resultados de ... no Google/YouTube` lê até cinco títulos e links em um
+Chromium isolado, sem acessar o perfil, cookies ou abas do usuário. O processo fecha
+ao terminar a leitura. A instalação do Chromium requer espaço adicional em disco.
+
+Com Bedrock habilitado, pedidos como `Encontre um tutorial de Python e abra o mais
+relevante` podem consultar os títulos, escolher um resultado e solicitar confirmação
+com título e URL. Apenas IDs retornados pela busca atual podem ser abertos; uma nova
+busca ou tarefa invalida os anteriores. Nenhuma URL livre é aceita nessa ferramenta.
+Essa sequência entre ferramentas é testada com um provedor simulado; a qualidade da
+seleção do modelo real ainda precisa ser avaliada.
+
+O conteúdo das páginas de destino não é lido. A escolha se baseia nos títulos, sem
+verificar qualidade ou segurança do conteúdo. Links exigem HTTPS, rejeitam destinos
+locais/privados e passam por verificação DNS antes da abertura no navegador padrão.
+Essa verificação não controla redirecionamentos ou novas resoluções feitas pelo
+navegador após a abertura; revise o endereço mostrado na confirmação.
+
+Google e YouTube podem exigir consentimento/CAPTCHA ou mudar seu layout. Nesses
+casos o aplicativo informa o erro e não tenta contornar o bloqueio. A interrupção é
+verificada entre operações e nas requisições; uma operação em andamento pode aguardar
+seu timeout. Títulos e links são dados externos não confiáveis e podem ser enviados
+ao Bedrock durante a tarefa quando a nuvem está habilitada.
 
 ## Interface desktop
 
@@ -104,5 +138,7 @@ Confira cobertura/expiração dos créditos e configure alertas AWS Budgets à p
 `ui`: janela, worker e bandeja. SQLite e automação COM são inicializados na thread
 que executa cada tarefa. Testes de interface usam o Qt em modo `offscreen` e são
 ignorados quando o extra `desktop` não está instalado.
-Os testes não abrem aplicativos, não alteram volume e não chamam a AWS.
+Os testes não alteram volume e não chamam a AWS. Os testes de navegador iniciam
+Chromium e usam páginas fornecidas localmente, sem fazer buscas externas. Quando
+Playwright ou Chromium não estão instalados, os testes que dependem deles são ignorados.
 

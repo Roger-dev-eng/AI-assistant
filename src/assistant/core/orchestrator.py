@@ -1,3 +1,5 @@
+import json
+
 from assistant.core.intent_router import Action, IntentRouter
 from assistant.tools.registry import validate
 
@@ -10,6 +12,7 @@ class Orchestrator:
         self.max_rounds = max_rounds
 
     def run(self, text):
+        self.executor.begin_task()
         if not text.strip():
             return "Digite um comando / Enter a command."
         if len(text.encode("utf-8")) > 12000:
@@ -18,7 +21,18 @@ class Orchestrator:
         if local is not None:
             if len(local) > 10:
                 raise ValueError("Too many local actions in one task.")
-            return "\n".join(self.executor.execute_plan(local))
+            outputs = self.executor.execute_plan(local)
+            formatted = []
+            for action, output in zip(local, outputs):
+                if action.name == "read_search_results" and not self.executor.dry_run:
+                    results = json.loads(output)["untrusted_search_results"]
+                    output = "\n\n".join(
+                        f"{index}. {item['title']}\n{item['url']}"
+                        for index, item in enumerate(results, 1)
+                    )
+                    output += "\n\nTítulos e links; as páginas de destino não foram lidas."
+                formatted.append(output)
+            return "\n".join(formatted)
         messages = [{"role": "user", "content": [{"text": text}]}]
         for _ in range(self.max_rounds):
             if self.executor.cancelled.is_set():

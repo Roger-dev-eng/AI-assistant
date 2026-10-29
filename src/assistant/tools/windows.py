@@ -2,7 +2,8 @@ import os
 import webbrowser
 from contextlib import contextmanager
 from pathlib import Path
-from urllib.parse import urlencode
+
+from assistant.tools.browser import BrowserTools, search_url
 
 
 @contextmanager
@@ -25,6 +26,24 @@ def automation_context():
 
 class WindowsTools:
     """Fixed tool implementations. No shell, arbitrary executable paths or generated scripts."""
+
+    def __init__(self):
+        self.browser = BrowserTools()
+
+    def bind_cancellation(self, cancelled):
+        self.browser.cancelled = cancelled
+
+    def reset_task(self):
+        self.browser.results.clear()
+
+    def read_search_results(self, query, engine):
+        return self.browser.read_search_results(query, engine)
+
+    def describe_result(self, result_id):
+        return self.browser.describe_result(result_id)
+
+    def open_search_result(self, result_id):
+        return self.browser.open_search_result(result_id)
 
     @staticmethod
     def _windows():
@@ -84,12 +103,7 @@ class WindowsTools:
         return f"Opened {url}."
 
     def search_web(self, query, engine):
-        url = (
-            "https://www.youtube.com/results?" + urlencode({"search_query": query})
-            if engine == "youtube"
-            else "https://www.google.com/search?" + urlencode({"q": query})
-        )
-        return self.open_site(url)
+        return self.open_site(search_url(query, engine))
 
     def set_volume(self, percent):
         self._windows()
