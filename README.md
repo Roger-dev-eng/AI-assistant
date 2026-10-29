@@ -4,8 +4,80 @@ Assistente híbrido em português e inglês. Comandos conhecidos executam localm
 solicitações que exigem interpretação podem usar Amazon Bedrock. Esta versão inclui
 o núcleo no terminal, interface PySide6 e leitura de buscas com Playwright.
 Voz local usa faster-whisper e Piper com modelos configurados separadamente.
-Ativação local experimental por palavra está disponível; memória e instalador estão nos próximos marcos de
-[docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
+Inclui ativação local experimental, contexto opcional, configuração inicial e instalador
+Windows. O estado da validação está em [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
+
+## Executável e instalação
+
+O build gera `dist/AssistantDesktop/AssistantDesktop.exe` (aplicativo portátil, com
+toda a pasta ao lado) e `dist/installer/AssistantDesktop-0.1.0-Setup.exe` (instalador
+por usuário, sem privilégios de administrador). O instalador oferece atalhos e
+desinstalação; a configuração inicial oferece início com Windows desmarcado por padrão. Modelos e credenciais
+não são distribuídos. A primeira abertura mostra a configuração inicial; o microfone
+permanece desligado. A desinstalação preserva configurações/consumo em
+`%LOCALAPPDATA%/AssistantDesktop`.
+
+Para reproduzir o build no Windows com Python 3.12 e todas as dependências:
+
+```powershell
+python -m pip install -e ".[dev,windows,desktop,browser,voice]"
+python -m playwright install chromium
+python scripts/build_windows.py
+# Com o compilador Inno Setup 6/7 instalado:
+ISCC packaging/windows.iss
+```
+
+`requirements-windows.lock` registra as versões usadas na validação. Para repetir
+esse ambiente, instale `python -m pip install -r requirements-windows.lock` e depois
+`python -m pip install -e . --no-deps` antes do build.
+
+Chromium headless é incluído pelo build; modelos de voz/transcrição não são.
+Consulte [packaging/THIRD_PARTY.md](packaging/THIRD_PARTY.md) para componentes/licenças.
+O código-fonte da versão acompanha a entrega em arquivo separado. Os binários
+gerados localmente não têm assinatura digital do publicador.
+
+## Configuração, memória e modelos
+
+**Aplicativo → Configurações** define perfil/região AWS, limites, caminhos dos modelos,
+memória e início com Windows. As preferências são salvas em
+`%LOCALAPPDATA%/AssistantDesktop/settings.json`, sem credenciais. Variáveis de
+ambiente e `.env` têm prioridade na próxima inicialização. `--setup` reabre a
+configuração; `--gui --tray` inicia na bandeja quando disponível, sem ligar a escuta.
+
+A memória vem desligada. Ao habilitá-la, o SQLite guarda texto dos comandos e
+respostas finais em disco sem criptografia: no máximo seis interações, por sete dias
+por padrão. A retenção é aplicada ao acessar a memória. Até 4000 bytes de pares
+recentes são enviados como contexto nas próximas tarefas que usam Bedrock. Chamadas
+de ferramenta e aprovações antigas não são reproduzidas; IDs de busca continuam
+restritos à tarefa atual. **Apagar contexto guardado** remove esses textos preservando
+o consumo. Desabilitar memória na configuração também apaga o contexto. Na CLI,
+`--forget` apaga o contexto e sai. **Limpar conversa** remove apenas o texto visível.
+
+O modelo principal permanece configurável. Para um alternativo, informe ID e as duas
+tarifas próprias em Configurações e escolha **Modelo alternativo** antes de enviar.
+Na CLI use `--secondary`. Não há repetição automática em outro modelo: cada escolha
+passa pelo mesmo orçamento, registro de consumo e confirmações. IDs/perfis de
+inferência e tarifas precisam corresponder à região e modalidade contratadas.
+
+## Validação e diagnóstico
+
+```powershell
+python -m pytest -q
+python scripts/evaluate_model.py --output evaluation-local.json
+# Opcional: usa AWS e consome a cota; avalia propostas sem executar ferramentas:
+python scripts/evaluate_model.py --live --output evaluation-bedrock.json
+# Funciona também no executável, sem abrir janela nem chamar AWS:
+python -m assistant --diagnostics diagnostics.json
+```
+
+O avaliador usa 60 comandos versionados (20 simples, 20 compostos, 10 ambíguos e
+10 de segurança), registra a seleção de ferramentas e verifica o alvo de 95% nos
+casos normais. A avaliação local não mede a qualidade do modelo. A execução real
+do Bedrock e o áudio com modelos/hardware escolhidos permanecem verificações
+externas; não são substituídos por testes simulados. Há um exemplo restrito de
+política em [docs/aws-policy.example.json](docs/aws-policy.example.json); perfis de
+inferência podem exigir recursos adicionais. Confira acesso, créditos e alertas
+US$2/US$4/US$5 na conta antes de habilitar a nuvem.
 
 ## Instalação no Windows
 

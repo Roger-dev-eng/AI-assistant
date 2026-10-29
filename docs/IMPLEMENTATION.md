@@ -55,9 +55,23 @@ O primeiro marco é a prova de conceito no terminal descrita na seção 7.
    automaticamente nem liga o microfone ao iniciar. Textos ambientais são processados
    apenas localmente e descartados. Mais CPU/latência que um detector dedicado;
    qualidade real ainda não medida. Testes usam áudio e transcrições simulados.
-5. Memória com política de retenção/remoção e seleção configurável de segundo modelo.
-   O núcleo conserva contexto apenas dentro de cada tarefa; não grava conversas.
-6. PyInstaller, instalador Windows, configuração inicial e opção de iniciar com Windows.
+5. **Implementado — memória e seleção de modelos:** histórico opcional sem criptografia,
+   retenção em dias/turnos, exclusão pelo aplicativo/CLI, contexto limitado a 4000 bytes.
+   Somente textos finais são reutilizados; ferramentas/confirmações não são repetidas.
+   Modelo alternativo tem seleção explícita e tarifas próprias; não há fallback automático.
+6. **Implementado — distribuição:** script PyInstaller Windows/Python 3.12 com Chromium
+   headless e dependências locais, instalador Inno Setup por usuário com desinstalação,
+   atalhos e startup opcional; configuração inicial em PySide6 e diagnóstico offline.
+   Modelos de voz e credenciais não entram no pacote. Binários locais sem assinatura.
+
+## Avaliação de aceitação
+
+`scripts/evaluate_model.py` usa 60 casos versionados e não executa ferramentas.
+O modo padrão avalia o roteador; `--live` habilita explicitamente a avaliação paga
+de propostas pelo Bedrock, sujeita às mesmas cotas. Essa etapa na conta AWS e os
+testes com modelos de voz/hardware reais continuam pendentes. As implementações das
+etapas do planejamento estão presentes; esses critérios externos não estão marcados
+como verificados. Artefatos de build ficam em `dist/` e não são versionados no Git.
 
 ## Limites de segurança e custos
 
