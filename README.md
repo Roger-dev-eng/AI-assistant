@@ -1,340 +1,294 @@
 # Assistente de IA para Windows
 
-Assistente híbrido em português e inglês. Comandos conhecidos executam localmente;
-solicitações que exigem interpretação podem usar Amazon Bedrock. Esta versão inclui
-o núcleo no terminal, interface PySide6 e leitura de buscas com Playwright.
-Voz local usa faster-whisper e Piper com modelos configurados separadamente.
-Nova 2 Sonic oferece interpretação e resposta falada na AWS, com encerramento
-automático por silêncio. Veja [configuração da voz AWS](docs/VOICE_AWS.md).
-Inclui ativação local experimental, contexto opcional, configuração inicial e instalador
-Windows. O estado da validação está em [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
+Este projeto é um assistente desktop desenvolvido em **Python**, com interface em **PySide6** e integração com o **Amazon Bedrock**. Ele permite controlar ações do Windows por texto ou voz, executar comandos locais e usar IA para interpretar solicitações em português e inglês.
 
-## Executável e instalação
+A aplicação combina reconhecimento de fala local com **faster-whisper**, leitura de respostas com **Piper** e um modo de voz na AWS com **Amazon Nova 2 Sonic**.
 
-O build gera `dist/AssistantDesktop/AssistantDesktop.exe` (aplicativo portátil, com
-toda a pasta ao lado) e `dist/installer/AssistantDesktop-0.3.0-Setup.exe` (instalador
-por usuário, sem privilégios de administrador). O instalador oferece atalhos e
-desinstalação; a configuração inicial oferece início com Windows desmarcado por padrão. Modelos e credenciais
-não são distribuídos. A primeira abertura mostra a configuração inicial; o microfone
-permanece desligado. A desinstalação preserva configurações/consumo em
-`%LOCALAPPDATA%/AssistantDesktop`.
+Para baixar o aplicativo: [Instaladores no GitHub Releases](https://github.com/Roger-dev-eng/AI-assistant/releases/latest).
 
-Para reproduzir o build no Windows com Python 3.12 e todas as dependências:
+## Conteúdo
 
-```powershell
-python -m pip install -e ".[dev,windows,desktop,browser,voice,sonic]"
-python -m playwright install chromium
-python scripts/build_windows.py
-# Com o compilador Inno Setup 6/7 instalado:
-ISCC packaging/windows.iss
+- [Descrição](#descrição)
+- [Objetivo do projeto](#objetivo-do-projeto)
+- [Funcionalidades](#funcionalidades)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Explicação dos principais componentes](#explicação-dos-principais-componentes)
+- [Como instalar o aplicativo](#como-instalar-o-aplicativo)
+- [Como executar localmente](#como-executar-localmente)
+- [Configuração de IA e voz](#configuração-de-ia-e-voz)
+- [Como usar](#como-usar)
+- [Atualizações e publicação](#atualizações-e-publicação)
+- [Testes automatizados](#testes-automatizados)
+- [Privacidade e limites](#privacidade-e-limites)
+- [Tecnologias utilizadas](#tecnologias-utilizadas)
+- [O que foi aprendido](#o-que-foi-aprendido)
+- [Documentação complementar](#documentação-complementar)
+- [Licença](#licença)
+
+## Descrição
+
+O assistente oferece uma janela de conversa para enviar comandos, acompanhar respostas, revisar transcrições e confirmar ações sensíveis. Também pode permanecer na bandeja do Windows e receber comandos após a ativação pela palavra **Assistente** ou **Assistant**.
+
+Comandos conhecidos são tratados localmente. Quando o Bedrock está habilitado, solicitações que precisam de interpretação podem ser enviadas à IA, que utiliza um catálogo definido de ferramentas para interagir com o sistema.
+
+## Objetivo do projeto
+
+Criar um assistente pessoal para Windows que facilite tarefas do dia a dia por linguagem natural, combinando automação local, inteligência artificial e interação por voz.
+
+O projeto também busca manter controle sobre as ações executadas, o envio de dados à nuvem e o consumo estimado dos serviços da AWS.
+
+## Funcionalidades
+
+- Envio de comandos em português e inglês pela interface desktop ou pelo terminal.
+- Abertura de aplicativos, consulta da janela ativa e ajuste de volume.
+- Execução de sequências de comandos reconhecidos localmente.
+- Interpretação de solicitações com Amazon Bedrock e modelo configurável.
+- Buscas no Google e YouTube, com leitura de títulos e links usando Playwright.
+- Confirmação para ações sensíveis e abertura de resultados selecionados.
+- Gravação e transcrição local de comandos com faster-whisper.
+- Leitura de textos e respostas com Piper.
+- Interação por voz com Nova 2 Sonic e encerramento da captura após uma pausa.
+- Ativação local experimental pelas palavras **Assistente** e **Assistant**.
+- Memória opcional entre tarefas, com retenção configurável.
+- Registro local de consumo estimado e limites de uso da AWS.
+- Modo de simulação de ações e interrupção de tarefas.
+- Instalador Windows e verificação de atualizações pelo próprio aplicativo.
+
+## Estrutura do projeto
+
+```text
+AI-assistant/
+│
+├── src/assistant/
+│   ├── ai/                 # Integrações com Bedrock, modelos e instruções da IA
+│   ├── audio/              # Captura, transcrição, ativação e síntese de voz
+│   ├── cloud/              # Registro de consumo e controle de cotas
+│   ├── core/               # Roteamento, execução e organização das tarefas
+│   ├── security/           # Confirmações e configuração de início com Windows
+│   ├── storage/            # Memória opcional das conversas
+│   ├── tools/              # Ferramentas de automação do Windows e navegador
+│   ├── ui/                 # Interface, configurações, bandeja e workers
+│   ├── config.py           # Configurações e preferências
+│   ├── main.py             # Entrada da aplicação
+│   └── updates.py          # Consulta, download e verificação de atualizações
+│
+├── tests/                  # Testes automatizados
+├── scripts/                # Build, entrada do executável e avaliação de comandos
+├── packaging/              # Instalador Windows e informações de terceiros
+├── docs/                   # Configuração AWS, implementação e validação
+├── .github/workflows/      # Testes e publicação pelo GitHub Actions
+├── .env.example            # Exemplo de configuração sem credenciais
+├── pyproject.toml          # Metadados e dependências do projeto
+├── requirements-windows.lock
+└── README.md
 ```
 
-`requirements-windows.lock` registra as versões usadas na validação. Para repetir
-esse ambiente, instale `python -m pip install -r requirements-windows.lock` e depois
-`python -m pip install -e . --no-deps` antes do build.
+## Explicação dos principais componentes
 
-Chromium headless é incluído pelo build; modelos de voz/transcrição não são.
-Consulte [packaging/THIRD_PARTY.md](packaging/THIRD_PARTY.md) para componentes/licenças.
-O código-fonte da versão acompanha a entrega em arquivo separado. Os binários
-gerados localmente não têm assinatura digital do publicador.
+### `src/assistant/core/`
 
-## Atualizações e publicação
+Identifica comandos locais, organiza as etapas de uma tarefa e encaminha as ações para o executor. O executor aplica as regras de confirmação e o modo de simulação.
 
-**Aplicativo → Verificar atualizações** consulta as versões estáveis em
-[GitHub Releases](https://github.com/Roger-dev-eng/AI-assistant/releases).
-Após confirmação, o aplicativo baixa o instalador oficial, verifica tamanho e
-SHA-256 publicado pelo GitHub, fecha, atualiza a mesma pasta e reabre. Configurações,
-modelos, consumo e credenciais são preservados. Não instala outro aplicativo.
-Versões anteriores à 0.3.0 precisam desta atualização manual uma única vez.
+### `src/assistant/ai/`
 
-A consulta só acontece ao abrir a opção. Não usa credenciais AWS nem token GitHub.
-Downloads podem ser cancelados. Erros preservam o app aberto ou reabrem a instalação;
-logs ficam em `%LOCALAPPDATA%/AssistantDesktop/updates`. A atualização automática
-requer a versão instalada, Windows com permissão para executar o instalador e o
-helper PowerShell. Políticas de assinatura/execução não são alteradas.
+Concentra a comunicação com os modelos do Amazon Bedrock. A integração de texto utiliza a API Converse; o Nova 2 Sonic utiliza a API de streaming bidirecional.
 
-GitHub Actions executa Ruff e pytest em pushes e pull requests. A publicação de
-uma tag `vX.Y.Z` executa novamente essa validação e só depois gera o executável,
-verifica o diagnóstico sem AWS/microfone, compila e publica instalador, fontes e
-hashes em Releases. O instalador `.exe` usa Releases; GitHub Packages é um registro
-de pacotes de ecossistemas e não o canal de atualização deste aplicativo.
+### `src/assistant/audio/`
 
-Para publicar, atualize as versões em `pyproject.toml` e `packaging/windows.iss`,
-faça commit/push e publique a tag correspondente. O workflow também permite
-`workflow_dispatch` para produzir artefatos sem publicar uma versão oficial.
+Realiza a captura do microfone, a transcrição com faster-whisper, a síntese com Piper e a detecção local da palavra de ativação.
 
-## Configuração, memória e modelos
+### `src/assistant/ui/`
 
-**Aplicativo → Configurações** define perfil/região AWS, limites, caminhos dos modelos,
-memória e início com Windows. As preferências são salvas em
-`%LOCALAPPDATA%/AssistantDesktop/settings.json`, sem credenciais. Variáveis de
-ambiente e `.env` têm prioridade na próxima inicialização. `--setup` reabre a
-configuração; `--gui --tray` inicia na bandeja quando disponível, sem ligar a escuta.
+Contém a janela principal, os diálogos de configuração e atualização e a integração com a bandeja. As tarefas usam workers para manter a interface responsiva.
 
-A memória vem desligada. Ao habilitá-la, o SQLite guarda texto dos comandos e
-respostas finais em disco sem criptografia: no máximo seis interações, por sete dias
-por padrão. A retenção é aplicada ao acessar a memória. Até 4000 bytes de pares
-recentes são enviados como contexto nas próximas tarefas que usam Bedrock. Chamadas
-de ferramenta e aprovações antigas não são reproduzidas; IDs de busca continuam
-restritos à tarefa atual. **Apagar contexto guardado** remove esses textos preservando
-o consumo. Desabilitar memória na configuração também apaga o contexto. Na CLI,
-`--forget` apaga o contexto e sai. **Limpar conversa** remove apenas o texto visível.
+### `src/assistant/cloud/` e `src/assistant/storage/`
 
-O modelo principal permanece configurável. Para um alternativo, informe ID e as duas
-tarifas próprias em Configurações e escolha **Modelo alternativo** antes de enviar.
-Na CLI use `--secondary`. Não há repetição automática em outro modelo: cada escolha
-passa pelo mesmo orçamento, registro de consumo e confirmações. IDs/perfis de
-inferência e tarifas precisam corresponder à região e modalidade contratadas.
+Utilizam SQLite para registrar consumo estimado e, quando habilitada, guardar a memória textual das interações.
 
-## Validação e diagnóstico
+## Como instalar o aplicativo
+
+1. Acesse a [página de Releases](https://github.com/Roger-dev-eng/AI-assistant/releases/latest).
+2. Baixe o arquivo `AssistantDesktop-X.Y.Z-Setup.exe` da versão desejada.
+3. Execute o instalador e abra o **Assistente de IA**.
+4. Acesse **Aplicativo → Configurações** para ajustar AWS, voz e preferências.
+
+O instalador é por usuário e não exige Python instalado. Modelos de voz locais e credenciais AWS são configurados separadamente. O microfone começa desligado.
+
+## Como executar localmente
+
+O ambiente de desenvolvimento utiliza **Windows x64 e Python 3.12**.
+
+1. Clone o repositório:
 
 ```powershell
-python -m pytest -q
-python scripts/evaluate_model.py --output evaluation-local.json
-# Opcional: usa AWS e consome a cota; avalia propostas sem executar ferramentas:
-python scripts/evaluate_model.py --live --output evaluation-bedrock.json
-# Funciona também no executável, sem abrir janela nem chamar AWS:
-python -m assistant --diagnostics diagnostics.json
+git clone https://github.com/Roger-dev-eng/AI-assistant.git
+cd AI-assistant
 ```
 
-O avaliador usa 60 comandos versionados (20 simples, 20 compostos, 10 ambíguos e
-10 de segurança), registra a seleção de ferramentas e verifica o alvo de 95% nos
-casos normais. A avaliação local não mede a qualidade do modelo. A execução real
-do Bedrock e o áudio com modelos/hardware escolhidos permanecem verificações
-externas; não são substituídos por testes simulados. Há um exemplo restrito de
-política em [docs/aws-policy.example.json](docs/aws-policy.example.json); perfis de
-inferência podem exigir recursos adicionais. Confira acesso, créditos e alertas
-US$2/US$4/US$5 na conta antes de habilitar a nuvem.
-
-## Instalação no Windows
-
-Use **Python 3.12** (alvo do projeto). As dependências de voz e Windows podem não
-estar disponíveis para versões mais recentes do Python.
+2. Crie um ambiente virtual e instale as dependências:
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\python -m pip install -e ".[windows,desktop,dev]"
+.\.venv\Scripts\python -m pip install -r requirements-windows.lock
+.\.venv\Scripts\python -m pip install --no-deps -e .
+.\.venv\Scripts\python -m playwright install chromium
+```
+
+3. Copie o exemplo de configuração:
+
+```powershell
 Copy-Item .env.example .env
 ```
 
-Para usar voz, instale também o extra `voice` e configure os modelos conforme abaixo.
-
-## Voz local
+4. Abra a interface com AWS desabilitada e ações simuladas:
 
 ```powershell
-.\.venv\Scripts\python -m pip install -e ".[voice]"
+.\.venv\Scripts\python -m assistant --gui --offline --dry-run
 ```
 
-Use Python 3.12: o ONNX Runtime necessário às bibliotecas de voz não estava disponível
-para Python 3.15 durante a validação. Foi criado neste ambiente um `.venv312` separado,
-com todas as dependências instaladas. Para abrir usando esse ambiente:
+Para executar comandos locais de verdade, remova `--dry-run`. Para permitir Bedrock após configurar a AWS, remova também `--offline` e habilite a opção correspondente na interface.
 
-```powershell
-.\.venv312\Scripts\python -m assistant --gui --offline
+O parâmetro `--offline` bloqueia chamadas à AWS; buscas no navegador ainda precisam de internet. O parâmetro `--dry-run` simula as ferramentas, mas não bloqueia custos de IA quando a nuvem está habilitada.
+
+## Configuração de IA e voz
+
+### Amazon Bedrock
+
+Configure um perfil AWS fora do repositório e informe o nome desse perfil em **Aplicativo → Configurações**. Ajuste a região, o modelo e os limites antes de marcar **Permitir Bedrock (AWS)**.
+
+O modelo de texto de referência é `amazon.nova-micro-v1:0`. A configuração de exemplo contém:
+
+```dotenv
+AWS_PROFILE=assistant-dev
+AWS_REGION=us-east-1
+BEDROCK_MODEL_ID=amazon.nova-micro-v1:0
+ASSISTANT_CLOUD_ENABLED=false
+MONTHLY_BUDGET_USD=5
+MAX_CLOUD_REQUESTS_PER_DAY=100
 ```
 
-Configure no `.env` caminhos para modelos que já estejam no disco:
+Não coloque chaves de acesso no `.env` nem no repositório. Confira as permissões do perfil, a disponibilidade do modelo e os custos na sua conta. Há um exemplo de política em [docs/aws-policy.example.json](docs/aws-policy.example.json).
+
+### Voz local: faster-whisper e Piper
+
+Informe os caminhos dos modelos locais nas configurações ou no `.env`:
 
 ```dotenv
 WHISPER_MODEL_PATH=C:/modelos/faster-whisper-tiny
 PIPER_VOICE_PT=C:/modelos/pt_BR-voz-medium.onnx
 PIPER_VOICE_EN=C:/modelos/en_US-voz-medium.onnx
 ASSISTANT_LANGUAGE=auto
-ASSISTANT_VOICE_ENABLED=false
-RECORDING_SECONDS=10
 ```
 
-Os nomes acima são exemplos de caminhos. O modelo de transcrição precisa estar no
-formato CTranslate2 do faster-whisper, com `model.bin`, `config.json`, `tokenizer.json`
-e `preprocessor_config.json`. Cada voz Piper requer o arquivo `.onnx` e o arquivo
-`.onnx.json` com o mesmo nome ao lado. Consulte o [modelo de referência do
-faster-whisper](https://huggingface.co/Systran/faster-whisper-tiny) e o [catálogo de
-vozes Piper](https://huggingface.co/rhasspy/piper-voices/tree/main). Confira o tamanho
-dos arquivos e a licença da voz escolhida antes de baixar. O aplicativo não baixa
-modelos nem importa o perfil de outros programas.
+O faster-whisper utiliza um modelo no formato CTranslate2. Cada voz Piper precisa do arquivo `.onnx` e do `.onnx.json` correspondente. O aplicativo não baixa esses modelos automaticamente.
 
-Na interface, **Gravar comando** prepara o modelo local antes de ativar o microfone.
-A indicação **Microfone ativo** aparece durante a captura, por até 10 segundos por
-padrão (configurável de 1 a 30). **Concluir gravação** encerra a captura e transcreve;
-**Interromper** descarta a operação. O texto reconhecido fica no campo de comando
-para revisão e só é executado quando você clica **Enviar**. Áudio silencioso, muito
-curto ou com perda de captura é rejeitado. Fechar/ocultar a janela durante uma
-gravação cancela a captura.
+No modo local, a transcrição fica no campo de comando para revisão antes de clicar em **Enviar**. O Piper permite ler a seleção ou a última resposta.
 
-**Ler seleção/resposta** sintetiza o trecho selecionado ou a última resposta com
-Piper. **Ler respostas** habilita leitura automática após a tarefa; o padrão vem de
-`ASSISTANT_VOICE_ENABLED`. A leitura aceita até 2000 caracteres; para respostas
-maiores, selecione um trecho. Selecione Português ou English para fixar o idioma.
-O modo automático detecta o idioma da fala; na leitura, usa o último idioma
-reconhecido, com português como padrão inicial para comandos digitados.
+### Voz AWS: Nova 2 Sonic
 
-Captura, transcrição e síntese são locais. Áudio e WAV sintetizado ficam em memória
-e não são gravados no histórico ou em arquivos temporários. O texto revisado pode
-ser enviado à AWS ao executar uma tarefa com Bedrock habilitado. A captura nunca
-começa sozinha, inclusive com **Ler respostas** ligado. Cancelamento de carregamento/inferência é verificado entre operações;
-o cálculo atual pode precisar terminar antes de a thread encerrar.
+Selecione **Nova 2 Sonic · áudio na AWS** e habilite Bedrock. O Sonic recebe o áudio do comando, interpreta a solicitação e gera a resposta falada. Comandos comuns podem executar sem revisão prévia da transcrição; as confirmações de ações sensíveis continuam sendo exigidas.
 
-A integração e os fluxos de captura/reprodução foram testados com dados simulados,
-e as dependências reais importam em Python 3.12. Reconhecimento e síntese com modelos
-reais e o microfone/alto-falante do usuário ainda precisam de validação após configurar
-os arquivos. Modelos não foram baixados nesta etapa.
+A captura termina após uma pausa configurável. Para ativação por palavra, clique em **Ativar escuta** e diga, por exemplo, **“Assistente, abra o Chrome”**. A detecção da palavra acontece localmente e requer o modelo Whisper configurado.
 
-## Palavra de ativação e segundo plano
+Consulte o [guia de voz AWS](docs/VOICE_AWS.md) para configurar o modelo, a voz e a permissão específica do Sonic.
 
-Clique **Ativar escuta** na janela ou no menu da bandeja. Com o modelo local de
-transcrição configurado, diga **Assistente, abra o Chrome** ou **Assistant, open
-Chrome**. A palavra precisa iniciar o trecho reconhecido. A janela mostra o estado
-do microfone; enquanto ele está ativo, o ícone da bandeja fica vermelho e o tooltip
-indica **MICROFONE ATIVO (local)**. Use **Parar escuta**, **Interromper**, Esc ou o menu
-da bandeja para cancelar. Sair do aplicativo aguarda a liberação do microfone.
+## Como usar
 
-A implementação é experimental e reutiliza o faster-whisper para transcrever blocos
-de três segundos, com sobreposição de 0,75 segundo. **Enquanto a escuta estiver
-ligada, a fala ambiente desses blocos também pode ser transcrita localmente** para
-procurar a palavra. Esses textos não são exibidos, gravados ou enviados à AWS.
-Somente o comando após a ativação é apresentado para revisão. A detecção pode
-errar ou perder palavras em fronteiras de blocos e consome mais CPU/tem mais latência
-que um detector de palavra dedicado. Não é autenticação por voz.
+Exemplos de comandos:
 
-A escuta fica desligada ao abrir o programa, expira após 120 segundos por padrão
-(`WAKE_LISTEN_SECONDS`, de 15 a 600) e termina depois de capturar **um** comando.
-O trecho total do comando inclui o bloco inicial de três segundos e é limitado por
-`RECORDING_SECONDS` (mínimo efetivo de três segundos nesse modo). Após a indicação
-de ativação, **Concluir gravação** encerra a captura preservando o áudio ainda em
-buffer. A transcrição final remove a palavra de ativação e vai para o campo de
-comando, sem executar ações automaticamente. A escuta não reinicia após enviar ou
-reproduzir uma resposta; ative novamente para outra sessão.
-
-Com bandeja disponível, fechar/ocultar a janela mantém apenas essa escuta explicitamente
-ativada em segundo plano. Ao reconhecer o comando, a janela reaparece para revisão.
-Gravações manuais continuam sendo canceladas quando a janela é ocultada. Sem bandeja,
-fechar a janela encerra o aplicativo e a escuta. Uma fila pequena limita o áudio em
-memória; perda de captura, timeout ou transcrição lenta demais encerram a operação.
-
-Os testes validam áudio sobreposto, cancelamento, limite de fila, remoção da palavra e
-revisão na interface usando dados simulados. Precisão, latência e consumo de CPU com
-voz real continuam pendentes de validação com o modelo/microfone escolhidos.
-
-## Buscas com Playwright
-
-```powershell
-.\.venv\Scripts\python -m pip install -e ".[browser]"
-.\.venv\Scripts\python -m playwright install chromium
-.\.venv\Scripts\python -m assistant --offline "liste resultados de Python no Google"
-.\.venv\Scripts\python -m assistant --offline "list results for Python tutorials on YouTube"
+```text
+Abra o Chrome
+Open Notepad
+Pesquise Python no Google
+Liste resultados de tutoriais de Python no YouTube
+Volume 50%
+Qual o aplicativo ativo?
+Abra o Chrome e depois pesquise Python no YouTube
 ```
 
-`--offline` bloqueia a AWS; buscas ainda precisam de acesso à internet. Comandos
-simples como `pesquise Python no Google` continuam abrindo o navegador padrão.
-`liste resultados de ... no Google/YouTube` lê até cinco títulos e links em um
-Chromium isolado, sem acessar o perfil, cookies ou abas do usuário. O processo fecha
-ao terminar a leitura. A instalação do Chromium requer espaço adicional em disco.
+Use **Simular ações** para visualizar as ferramentas propostas sem executar seus efeitos. **Interromper** ou **Esc** cancela a tarefa, aguardando a liberação da operação atual.
 
-Com Bedrock habilitado, pedidos como `Encontre um tutorial de Python e abra o mais
-relevante` podem consultar os títulos, escolher um resultado e solicitar confirmação
-com título e URL. Apenas IDs retornados pela busca atual podem ser abertos; uma nova
-busca ou tarefa invalida os anteriores. Nenhuma URL livre é aceita nessa ferramenta.
-Essa sequência entre ferramentas é testada com um provedor simulado; a qualidade da
-seleção do modelo real ainda precisa ser avaliada.
+Fechar a janela mantém o aplicativo na bandeja quando esse recurso está disponível. Para encerrar, use **Aplicativo → Sair** ou **Sair** no menu da bandeja.
 
-O conteúdo das páginas de destino não é lido. A escolha se baseia nos títulos, sem
-verificar qualidade ou segurança do conteúdo. Links exigem HTTPS, rejeitam destinos
-locais/privados e passam por verificação DNS antes da abertura no navegador padrão.
-Essa verificação não controla redirecionamentos ou novas resoluções feitas pelo
-navegador após a abertura; revise o endereço mostrado na confirmação.
-
-Google e YouTube podem exigir consentimento/CAPTCHA ou mudar seu layout. Nesses
-casos o aplicativo informa o erro e não tenta contornar o bloqueio. A interrupção é
-verificada entre operações e nas requisições; uma operação em andamento pode aguardar
-seu timeout. Títulos e links são dados externos não confiáveis e podem ser enviados
-ao Bedrock durante a tarefa quando a nuvem está habilitada.
-
-## Interface desktop
-
-```powershell
-.\.venv\Scripts\python -m assistant --gui --offline --dry-run
-```
-
-Desmarque **Simular ações** para executar comandos locais de verdade. Para permitir
-Bedrock, configure primeiro o perfil AWS e abra sem `--offline`; a opção **Permitir
-Bedrock (AWS)** controla o envio de tarefas à nuvem. A simulação não bloqueia custos
-de IA quando Bedrock está habilitado.
-
-A janela oferece envio por Enter, conversa em texto, consumo acumulado, confirmação
-de ações sensíveis e botão **Interromper** (atalho Esc). Fechar a janela a oculta na
-bandeja quando disponível. Use **Aplicativo → Sair** ou **Sair** no menu da bandeja
-para encerrar. Sem bandeja disponível, fechar a janela encerra o aplicativo.
-
-Ao sair durante uma tarefa, o aplicativo interrompe o plano e aguarda a operação atual;
-não encerra a thread à força. Uma requisição AWS em andamento pode aguardar o timeout.
-Cada envio inicia uma tarefa independente; o texto exibido não é salvo nem reutilizado
-como memória entre tarefas. Limpar conversa remove apenas o texto da janela.
-
-## Testar sem ações reais nem AWS
-
-```powershell
-.\.venv\Scripts\python -m assistant --offline --dry-run "Abra o Chrome"
-.\.venv\Scripts\python -m assistant --offline --dry-run "Open Chrome and search for Python tutorials on YouTube"
-.\.venv\Scripts\python -m pytest
-```
-
-`--dry-run` simula ferramentas; sozinho não desabilita chamadas de IA. Use `--offline`
-para garantir que nenhuma chamada ao Bedrock seja feita.
-
-## Usar comandos locais
+Para usar pelo terminal:
 
 ```powershell
 .\.venv\Scripts\python -m assistant --offline
 ```
 
-Exemplos: `Abra o Chrome`, `Open Notepad`, `pesquise café no Google`,
-`search Python on YouTube`, `volume 50%`, `qual o aplicativo ativo?`.
-Sequências podem usar `e depois`, `and then`, `e` e `and` antes de outro comando.
-Um plano local só começa quando todas as partes são reconhecidas.
+## Atualizações e publicação
 
-Fechar aplicativos e definir volume acima de 70% exige digitar `sim` ou `yes`.
-`Ctrl+C` interrompe a tarefa; `sair`/`exit` encerra o programa. `/consumo` ou `/usage`
-mostra o total estimado de chamadas registradas.
+Na versão instalada, abra **Aplicativo → Verificar atualizações**. Após sua confirmação, o aplicativo baixa o instalador oficial, verifica tamanho e SHA-256, fecha, atualiza a mesma instalação e reabre. Configurações, modelos e credenciais são preservados.
 
-## Ativar Bedrock
+Versões anteriores à **0.3.0** precisam de uma atualização manual inicial para receber esse recurso. A consulta de versões acontece ao abrir a opção no menu.
 
-1. Configure o perfil AWS `assistant-dev` fora do projeto, usando a cadeia de
-   credenciais da AWS (preferencialmente SSO/credenciais temporárias).
-2. Verifique disponibilidade e acesso ao modelo na região escolhida. O ID de exemplo
-   é `amazon.nova-micro-v1:0`; pode ser necessário um perfil de inferência.
-3. Ajuste região, ID e tarifas no `.env` e defina `ASSISTANT_CLOUD_ENABLED=true`.
-4. Execute sem `--offline`. Confirmações continuam sendo exigidas pelo executor.
+A distribuição utiliza [GitHub Releases](https://github.com/Roger-dev-eng/AI-assistant/releases). Para publicar uma versão, atualize os metadados em `pyproject.toml` e `packaging/windows.iss`, envie o código e publique a tag `vX.Y.Z`. O GitHub Actions valida a versão, executa os testes, gera o aplicativo, verifica seu diagnóstico e publica instalador, fontes e hashes.
 
-O aplicativo não executa comandos de shell gerados pela IA. Cada ferramenta é validada
-contra um schema e uma lista de ações permitidas. Pedidos não reconhecidos localmente
-chegam ao modelo para interpretação ou esclarecimento; a interface não interpreta
-texto livre do modelo como código.
+O workflow também pode ser iniciado manualmente para gerar artefatos sem publicar uma release. Os scripts de build ficam disponíveis para desenvolvimento; o instalador utiliza PyInstaller e Inno Setup.
 
-Credenciais não pertencem ao `.env`. Não envie arquivos de perfil AWS ao repositório.
-Nenhuma infraestrutura AWS é necessária. Não foram criados orçamentos ou permissões
-na conta automaticamente.
+## Testes automatizados
 
-## Custos e dados
+Os testes são executados no [GitHub Actions](https://github.com/Roger-dev-eng/AI-assistant/actions) a cada push em branches e em pull requests. A publicação de uma versão também depende dessa validação.
 
-O limite padrão é US$5/mês e 100 requisições/dia, com períodos em UTC. SQLite mantém
-reservas antes de chamar o serviço; erros de rede mantêm sua reserva estimada.
-O arquivo fica em `%LOCALAPPDATA%\AssistantDesktop\usage.sqlite3`. Não grava texto
-de conversas. Solicitações ao modelo enviam o texto da tarefa e resultados das
-ferramentas, incluindo título da janela ativa quando solicitado.
+A suíte utiliza **pytest** e **Ruff** e cobre roteamento de comandos, validação de ferramentas, confirmações, interface, áudio simulado, consumo e atualização. Os testes não usam o microfone do usuário nem fazem chamadas pagas à AWS. Os relatórios ficam disponíveis nos artefatos da execução.
 
-As tarifas são estimativas configuráveis e precisam ser revisadas para o modelo
-selecionado. O limite do aplicativo não garante um teto de faturamento AWS.
-Confira cobertura/expiração dos créditos e configure alertas AWS Budgets à parte.
+O projeto também inclui avaliação de comandos em `scripts/evaluate_model.py` e diagnóstico pelo parâmetro `--diagnostics`. Consulte [o registro de validação](docs/VALIDATION.md) para distinguir os testes automatizados das verificações que dependem de modelos, hardware e serviços reais.
 
-## Estrutura
+## Privacidade e limites
 
-`src/assistant/core`: roteador, executor e orquestrador; `ai`: Converse e prompt;
-`tools`: catálogo e ações Windows; `cloud`: consumo SQLite; `security`: confirmação;
-`ui`: janela, worker e bandeja; `audio`: captura, transcrição e síntese locais.
-SQLite e automação COM são inicializados na thread
-que executa cada tarefa. Testes de interface usam o Qt em modo `offscreen` e são
-ignorados quando o extra `desktop` não está instalado.
-Os testes não alteram volume e não chamam a AWS. Os testes de navegador iniciam
-Chromium e usam páginas fornecidas localmente, sem fazer buscas externas. Quando
-Playwright ou Chromium não estão instalados, os testes que dependem deles são ignorados.
+- Credenciais AWS permanecem no perfil configurado fora do projeto.
+- Preferências e consumo ficam em `%LOCALAPPDATA%/AssistantDesktop`, separados da instalação.
+- A memória é opcional e vem desligada. Quando ativada, guarda texto localmente, sem criptografia, conforme a retenção definida nas configurações.
+- O áudio capturado não é salvo pelo aplicativo. No modo Sonic, o áudio do comando é enviado à AWS; no modo local, o texto pode ser enviado ao Bedrock ao executar uma tarefa com a nuvem habilitada.
+- A IA utiliza ferramentas permitidas com argumentos validados. Comandos de shell gerados pelo modelo não são executados.
+- Os limites mensais e diários são estimativas do aplicativo e não garantem um teto de faturamento na AWS.
+- A ativação por palavra e a detecção de silêncio são experimentais. Cada ativação atende um comando; a escuta não reinicia automaticamente após a resposta.
+- O modo Sonic captura a frase antes de enviá-la e reproduz a resposta após a interação. Conversa contínua e interrupção da resposta pela voz ainda não estão disponíveis.
+- Buscas podem falhar por mudanças de layout, consentimento ou CAPTCHA. O aplicativo não tenta contornar esses bloqueios.
+- O instalador não possui assinatura digital de publicador configurada. Políticas de execução do Windows podem impedir a abertura ou atualização.
+- A troca real entre duas versões instaladas ainda requer validação prática; os testes do atualizador utilizam simulações.
 
+## Tecnologias utilizadas
+
+| Tecnologia | Função |
+| --- | --- |
+| **Python 3.12** | Linguagem principal e execução da aplicação |
+| **PySide6 / Qt** | Interface desktop, diálogos e bandeja |
+| **Amazon Bedrock** | Acesso aos modelos de IA |
+| **Boto3 e AWS SDK Bedrock Runtime** | Integrações de texto e streaming de voz |
+| **Amazon Nova 2 Sonic** | Interpretação de áudio e resposta falada na AWS |
+| **faster-whisper** | Transcrição local e apoio à ativação por palavra |
+| **Piper** | Síntese de voz local |
+| **sounddevice e NumPy** | Captura e processamento de áudio |
+| **Playwright / Chromium** | Leitura de resultados de buscas |
+| **pywinauto e pycaw** | Automação do Windows e controle de volume |
+| **SQLite** | Consumo estimado e memória opcional |
+| **JSON Schema** | Validação dos argumentos das ferramentas |
+| **pytest e Ruff** | Testes automatizados e análise do código |
+| **PyInstaller e Inno Setup** | Empacotamento e instalador Windows |
+| **GitHub Actions e Releases** | Validação e distribuição das versões |
+
+## O que foi aprendido
+
+O desenvolvimento deste projeto reúne práticas de:
+
+- Integração de modelos de IA com ferramentas de automação.
+- Separação entre comandos locais e solicitações processadas na nuvem.
+- Uso de workers para executar tarefas sem bloquear a interface desktop.
+- Captura, transcrição e síntese de voz com componentes locais e serviços AWS.
+- Validação de ações, confirmações e controle de consumo estimado.
+- Persistência local de preferências e contexto opcional.
+- Empacotamento de aplicações Python e distribuição automatizada pelo GitHub.
+
+## Documentação complementar
+
+- [Plano e estado da implementação](docs/IMPLEMENTATION.md)
+- [Configuração do Nova 2 Sonic](docs/VOICE_AWS.md)
+- [Exemplo de permissão para o modelo de texto](docs/aws-policy.example.json)
+- [Exemplo de permissão para o Sonic](docs/aws-sonic-policy.example.json)
+- [Validação e limitações da entrega](docs/VALIDATION.md)
+- [Componentes e licenças de terceiros](packaging/THIRD_PARTY.md)
+
+## Licença
+
+O código deste projeto utiliza a [licença MIT](LICENSE). Bibliotecas, modelos e vozes de terceiros possuem suas próprias licenças; consulte também [packaging/THIRD_PARTY.md](packaging/THIRD_PARTY.md).
