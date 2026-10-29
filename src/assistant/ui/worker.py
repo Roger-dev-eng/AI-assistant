@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass, field
 from threading import Event
 
@@ -58,6 +59,9 @@ class TaskWorker(QThread):
         while not request.answered.wait(0.05):
             if self.cancelled.is_set():
                 raise InterruptedError("Tarefa interrompida / Task interrupted.")
+            deadline = getattr(self, "confirmation_deadline", None)
+            if deadline is not None and time.monotonic() >= deadline:
+                raise TimeoutError("A confirmação excedeu o tempo da sessão de voz.")
         if self.cancelled.is_set():
             raise InterruptedError("Tarefa interrompida / Task interrupted.")
         return request.accepted

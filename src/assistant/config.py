@@ -32,6 +32,16 @@ class Settings:
     secondary_input_rate: float | None = None
     secondary_output_rate: float | None = None
     start_with_windows: bool = False
+    speech_provider: str = "local"
+    silence_seconds: float = 1.75
+    sonic_model_id: str = "amazon.nova-2-sonic-v1:0"
+    sonic_voice: str = "carolina"
+    sonic_text_input_rate: float = 0.33
+    sonic_text_output_rate: float = 2.75
+    sonic_audio_input_rate: float = 3.0
+    sonic_audio_output_rate: float = 12.0
+    sonic_reservation_usd: float = 0.25
+    sonic_timeout_seconds: int = 120
 
     def __post_init__(self):
         for value in (self.monthly_budget, self.input_rate, self.output_rate):
@@ -49,6 +59,23 @@ class Settings:
             raise ValueError("Request and token limits must be positive.")
         if self.language not in {"auto", "pt", "en"}:
             raise ValueError("ASSISTANT_LANGUAGE must be auto, pt or en.")
+        if self.speech_provider not in {"local", "sonic"}:
+            raise ValueError("Speech provider must be local or sonic.")
+        if not math.isfinite(self.silence_seconds) or not 0.8 <= self.silence_seconds <= 3:
+            raise ValueError("Silence duration must be 0.8–3 seconds.")
+        if self.sonic_voice not in {"carolina", "leo", "tiffany", "matthew"}:
+            raise ValueError("Unsupported Sonic voice.")
+        if not 30 <= self.sonic_timeout_seconds <= 180:
+            raise ValueError("Sonic session timeout must be 30–180 seconds.")
+        for value in (
+            self.sonic_text_input_rate,
+            self.sonic_text_output_rate,
+            self.sonic_audio_input_rate,
+            self.sonic_audio_output_rate,
+            self.sonic_reservation_usd,
+        ):
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError("Sonic rates and reservation must be positive.")
         if not 1 <= self.recording_seconds <= 30:
             raise ValueError("Recording duration must be between 1 and 30 seconds.")
         if not 15 <= self.wake_listen_seconds <= 600:
@@ -91,6 +118,16 @@ class Settings:
             "SECONDARY_MODEL_ID": "secondary_model_id",
             "SECONDARY_INPUT_USD_PER_MILLION": "secondary_input_rate",
             "SECONDARY_OUTPUT_USD_PER_MILLION": "secondary_output_rate",
+            "SPEECH_PROVIDER": "speech_provider",
+            "SILENCE_SECONDS": "silence_seconds",
+            "SONIC_MODEL_ID": "sonic_model_id",
+            "SONIC_VOICE": "sonic_voice",
+            "SONIC_TEXT_INPUT_RATE": "sonic_text_input_rate",
+            "SONIC_TEXT_OUTPUT_RATE": "sonic_text_output_rate",
+            "SONIC_AUDIO_INPUT_RATE": "sonic_audio_input_rate",
+            "SONIC_AUDIO_OUTPUT_RATE": "sonic_audio_output_rate",
+            "SONIC_RESERVATION_USD": "sonic_reservation_usd",
+            "SONIC_TIMEOUT_SECONDS": "sonic_timeout_seconds",
         }
         for env, field in environment.items():
             if env not in os.environ:

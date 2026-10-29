@@ -68,6 +68,21 @@ def run_listener(stt, microphone, cancelled=None, seconds=3, finished=None):
     return result
 
 
+def test_sonic_wake_returns_audio_without_final_whisper_transcription():
+    np = pytest.importorskip("numpy")
+    first = np.concatenate([np.ones(16000) * 0.1, np.zeros(32000)])
+    microphone = FakeMicrophone([first])
+    stt = Mock()
+    stt.transcribe.return_value = Transcript("Assistente abra Chrome", "pt")
+    audio = listen_for_command(
+        stt, "pt", Event(), Event(), Settings(), Mock(),
+        Mock(return_value=microphone), return_audio=True,
+    )
+    assert microphone.closed
+    assert len(audio) == WINDOW_FRAMES
+    stt.transcribe.assert_called_once()
+
+
 def test_non_wake_speech_is_ignored_and_microphone_closes_before_review():
     np = pytest.importorskip("numpy")
     microphone = FakeMicrophone([np.ones(WINDOW_FRAMES), np.ones(WINDOW_FRAMES)])

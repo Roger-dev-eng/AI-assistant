@@ -4,6 +4,11 @@ A arquitetura segue o planejamento fornecido: Python 3.12, roteamento local,
 Bedrock via Boto3/Converse e ferramentas com permissões verificadas no aplicativo.
 O primeiro marco é a prova de conceito no terminal descrita na seção 7.
 
+Atualização 0.2.0: Nova 2 Sonic via SDK bidirecional, escolha local/AWS na interface,
+captura encerrada por silêncio, ativação local e orçamento compartilhado.
+O teste externo está bloqueado pela permissão IAM do modelo; consulte
+[VOICE_AWS.md](VOICE_AWS.md) e [VALIDATION.md](VALIDATION.md).
+
 ## Marco 1 — núcleo no terminal
 
 - [x] Projeto Python e configuração sem credenciais no `.env`.

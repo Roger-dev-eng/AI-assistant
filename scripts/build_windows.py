@@ -52,6 +52,14 @@ def main():
         "pywinauto",
         "pycaw",
         "comtypes",
+        "aws_sdk_bedrock_runtime",
+        "aws_sdk_signers",
+        "awscrt",
+        "smithy_core",
+        "smithy_aws_core",
+        "smithy_aws_event_stream",
+        "smithy_http",
+        "smithy_json",
     ):
         args += ["--collect-all", package]
     for distribution in (
@@ -63,6 +71,11 @@ def main():
         "sounddevice",
         "PySide6",
         "playwright",
+        "aws-sdk-bedrock-runtime",
+        "smithy-aws-core",
+        "smithy-core",
+        "smithy-http",
+        "awscrt",
     ):
         args += ["--copy-metadata", distribution]
     for path in browsers:

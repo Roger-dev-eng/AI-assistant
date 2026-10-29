@@ -2,6 +2,7 @@ from dataclasses import replace
 
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -48,7 +49,17 @@ class SettingsDialog(QDialog):
 
         def field(form, key, label, minimum=0, maximum=1000):
             value = getattr(settings, key)
-            if isinstance(value, bool):
+            if key in {"speech_provider", "sonic_voice"}:
+                control = QComboBox()
+                choices = (
+                    {"local": "Local · Whisper/Piper", "sonic": "Nova 2 Sonic · áudio na AWS"}
+                    if key == "speech_provider"
+                    else {voice: voice for voice in ("carolina", "leo", "tiffany", "matthew")}
+                )
+                for data, name in choices.items():
+                    control.addItem(name, data)
+                control.setCurrentIndex(control.findData(value))
+            elif isinstance(value, bool):
                 control = QCheckBox()
                 control.setChecked(value)
             elif isinstance(value, int):
@@ -88,6 +99,7 @@ class SettingsDialog(QDialog):
         ]:
             field(aws, key, label)
         voice = page("Voz local")
+        field(voice, "speech_provider", "Reconhecimento e resposta por voz")
         for key, label, directory in [
             ("whisper_model_path", "Pasta faster-whisper", True),
             ("piper_voice_pt", "Voz Piper português (.onnx)", False),
@@ -106,6 +118,25 @@ class SettingsDialog(QDialog):
         field(voice, "voice_enabled", "Ler respostas automaticamente")
         field(voice, "recording_seconds", "Limite de gravação em segundos", 1, 30)
         field(voice, "wake_listen_seconds", "Limite de escuta por ativação", 15, 600)
+        field(voice, "silence_seconds", "Pausa para encerrar captura (0,8–3s)")
+        sonic = page("Voz AWS")
+        sonic.addRow(
+            QLabel(
+                "Após a ativação, Sonic recebe o áudio e pode executar ferramentas.\n"
+                "Ações sensíveis exigem confirmação. Simular ações não impede cobrança AWS."
+            )
+        )
+        for key, label in [
+            ("sonic_model_id", "Modelo Sonic"),
+            ("sonic_voice", "Voz"),
+            ("sonic_text_input_rate", "US$/milhão de tokens de texto de entrada"),
+            ("sonic_text_output_rate", "US$/milhão de tokens de texto de saída"),
+            ("sonic_audio_input_rate", "US$/milhão de tokens de fala de entrada"),
+            ("sonic_audio_output_rate", "US$/milhão de tokens de fala de saída"),
+            ("sonic_reservation_usd", "Reserva estimada por sessão (US$)"),
+        ]:
+            field(sonic, key, label)
+        field(sonic, "sonic_timeout_seconds", "Tempo máximo da sessão (segundos)", 30, 180)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
@@ -125,7 +156,9 @@ class SettingsDialog(QDialog):
     def save(self):
         values = {}
         for key, control in self.fields.items():
-            if isinstance(control, QCheckBox):
+            if isinstance(control, QComboBox):
+                values[key] = control.currentData()
+            elif isinstance(control, QCheckBox):
                 values[key] = control.isChecked()
             elif isinstance(control, (QSpinBox, QDoubleSpinBox)):
                 values[key] = control.value()

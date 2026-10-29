@@ -18,7 +18,7 @@ class SystemTray(QSystemTrayIcon):
         self.window = window
 
     def update_controls(self):
-        listening = self.window.worker_kind == "wake"
+        listening = self.window.worker_kind == "wake" or self.window.sonic_wake
         self.listen_action.setText("Parar escuta" if listening else "Ativar escuta")
         self.listen_action.setEnabled(
             not self.window.exiting

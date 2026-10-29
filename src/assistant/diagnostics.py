@@ -20,6 +20,9 @@ def write_diagnostics(path, settings):
         "sounddevice",
         "pywinauto",
         "pycaw.pycaw",
+        "aws_sdk_bedrock_runtime",
+        "smithy_http.aio.crt",
+        "awscrt",
     ):
         try:
             importlib.import_module(name)

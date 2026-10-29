@@ -2,7 +2,7 @@ import queue
 import re
 import time
 
-from assistant.audio.recording import check_cancelled
+from assistant.audio.recording import SilenceEndpoint, check_cancelled
 from assistant.audio.speech_to_text import NoSpeechRecognized, Transcript
 
 SAMPLE_RATE = 16000
@@ -120,7 +120,14 @@ class MicrophoneWindows:
 
 
 def listen_for_command(
-    stt, language, cancelled, finished, settings, phase, stream_factory=MicrophoneWindows
+    stt,
+    language,
+    cancelled,
+    finished,
+    settings,
+    phase,
+    stream_factory=MicrophoneWindows,
+    return_audio=False,
 ):
     stt.prepare(cancelled)
     import numpy as np
@@ -145,8 +152,11 @@ def listen_for_command(
                 continue
             phase("Microfone ativo · ativação detectada; diga ou conclua seu comando.")
             chunks, frames = [window], len(window)
+            endpoint = SilenceEndpoint(settings.silence_seconds)
+            # Saying only the wake word must leave time for the following command.
+            ended = endpoint.feed(window) if command_after_wake(candidate.text) else False
             target = max(WINDOW_FRAMES, settings.recording_seconds * SAMPLE_RATE)
-            while frames < target:
+            while frames < target and not ended:
                 tail = microphone.read(finished)
                 if tail is None:
                     tail = microphone.finish_pending()[: target - frames]
@@ -156,13 +166,24 @@ def listen_for_command(
                 take = min(len(tail), target - frames)
                 chunks.append(tail[:take])
                 frames += take
+                ended = endpoint.feed(tail[:take])
             audio = np.concatenate(chunks)
+            if return_audio and not ended and not finished.is_set():
+                raise RuntimeError(
+                    "O comando atingiu o limite sem uma pausa. Tente uma frase menor."
+                )
             break
     # Close the microphone before the final transcription or any UI review.
     if getattr(microphone, "error", None):
         raise RuntimeError(microphone.error)
-    phase("Transcrevendo comando localmente… microfone desligado.")
+    phase(
+        "Microfone desligado · comando capturado."
+        if return_audio
+        else "Transcrevendo comando localmente… microfone desligado."
+    )
     check_cancelled(cancelled)
+    if return_audio:
+        return audio
     result = stt.transcribe(audio, language, cancelled)
     text = command_after_wake(result.text)
     if not text:

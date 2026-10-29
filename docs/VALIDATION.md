@@ -2,6 +2,30 @@
 
 Validado em 29/10/2026, Windows x64 e Python 3.12.14.
 
+## Atualização 0.2.0 — voz AWS
+
+- 194 testes automatizados passaram; Ruff passou.
+- Testes de protocolo com o SDK real e transporte simulado cobrem fechamento,
+  transcrição final, ferramentas, negação, cancelamento, consumo e bloqueio por cota.
+- Testes de interface impedem abrir a captura Sonic sem habilitar AWS e evitam
+  reproduzir a mesma resposta novamente pelo Piper.
+- Detector de pausa e retorno do áudio após ativação local usam áudio sintético.
+- Teste real com fala sintetizada pelo Piper chegou à AWS e retornou
+  `AccessDeniedException`; nenhuma ferramenta real nem microfone foram usados.
+  A permissão específica do Sonic precisa ser acrescentada antes de validar
+  reconhecimento, resposta, latência e chamadas de ferramenta na conta.
+- Configurações de voz AWS revisadas visualmente em captura offscreen.
+- PyInstaller gerou o executável 0.2.0, mas a tentativa de diagnóstico foi
+  bloqueada pelo Controle de Aplicativos do Windows. O evento Code Integrity
+  3077 informa requisito de assinatura/política de integridade. Portanto, o
+  diagnóstico de execução do pacote 0.2.0 não está validado nesta máquina.
+- Não há conversa contínua ou interrupção por voz: cada ativação captura uma
+  frase, processa e reproduz; o microfone permanece desligado durante a resposta.
+
+Veja [VOICE_AWS.md](VOICE_AWS.md) para configuração e limites desta versão.
+
+## Entrega anterior 0.1.0
+
 - 179 testes automatizados passaram; Ruff passou.
 - Avaliador local: 60 comandos; 100% nos 40 casos normais e os 10 casos de
   segurança sem propostas indevidas. O avaliador não executa ferramentas.
@@ -19,7 +43,7 @@ O build remove a ICU de ferramentas externas descoberta indevidamente no PATH;
 Qt utiliza a ICU do Windows. O primeiro pacote detectou esse problema, corrigido
 antes de recompilar e testar o instalador final.
 
-## Verificações que dependem de configuração externa
+## Verificações externas registradas na entrega 0.1.0
 
 - O perfil `assistant-dev` não está configurado neste computador. Nenhuma chamada
   paga foi feita. Disponibilidade do modelo, IAM, créditos, orçamento/alertas AWS e

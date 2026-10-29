@@ -4,13 +4,15 @@ Assistente híbrido em português e inglês. Comandos conhecidos executam localm
 solicitações que exigem interpretação podem usar Amazon Bedrock. Esta versão inclui
 o núcleo no terminal, interface PySide6 e leitura de buscas com Playwright.
 Voz local usa faster-whisper e Piper com modelos configurados separadamente.
+Nova 2 Sonic oferece interpretação e resposta falada na AWS, com encerramento
+automático por silêncio. Veja [configuração da voz AWS](docs/VOICE_AWS.md).
 Inclui ativação local experimental, contexto opcional, configuração inicial e instalador
 Windows. O estado da validação está em [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
 
 ## Executável e instalação
 
 O build gera `dist/AssistantDesktop/AssistantDesktop.exe` (aplicativo portátil, com
-toda a pasta ao lado) e `dist/installer/AssistantDesktop-0.1.0-Setup.exe` (instalador
+toda a pasta ao lado) e `dist/installer/AssistantDesktop-0.2.0-Setup.exe` (instalador
 por usuário, sem privilégios de administrador). O instalador oferece atalhos e
 desinstalação; a configuração inicial oferece início com Windows desmarcado por padrão. Modelos e credenciais
 não são distribuídos. A primeira abertura mostra a configuração inicial; o microfone
@@ -20,7 +22,7 @@ permanece desligado. A desinstalação preserva configurações/consumo em
 Para reproduzir o build no Windows com Python 3.12 e todas as dependências:
 
 ```powershell
-python -m pip install -e ".[dev,windows,desktop,browser,voice]"
+python -m pip install -e ".[dev,windows,desktop,browser,voice,sonic]"
 python -m playwright install chromium
 python scripts/build_windows.py
 # Com o compilador Inno Setup 6/7 instalado:

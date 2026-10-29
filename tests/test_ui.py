@@ -60,6 +60,24 @@ def submit(window, text):
     window.submit()
 
 
+def test_sonic_requires_cloud_choice_before_creating_worker(make_window):
+    factory = Mock()
+    window = make_window(force_offline=True, sonic_worker_factory=factory)
+    window.speech_choice.setCurrentIndex(window.speech_choice.findData("sonic"))
+    window.record_command()
+    factory.assert_not_called()
+    assert window.worker is None
+    assert "Permitir Bedrock" in window.transcript.toPlainText()
+
+
+def test_sonic_result_does_not_queue_piper(make_window):
+    window = make_window()
+    window.read_responses.setChecked(True)
+    window.worker_kind = "sonic"
+    window.show_result("Resposta já falada pelo Sonic")
+    assert not window.queued_speech
+
+
 def test_simulated_task_keeps_ui_responsive(app, make_window):
     window = make_window(dry_run=True, force_offline=True)
     submit(window, "Abra o Chrome")

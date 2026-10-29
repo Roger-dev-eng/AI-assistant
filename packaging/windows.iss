@@ -1,4 +1,4 @@
-#define AppVersion "0.1.0"
+#define AppVersion "0.2.0"
 [Setup]
 AppId={{44C09BA1-FB5D-48D9-B9EC-807091F28B06}
 AppName=Assistente de IA
@@ -25,6 +25,8 @@ Source: "..\dist\AssistantDesktop\*"; DestDir: "{app}"; Flags: ignoreversion rec
 Source: "..\README.md"; DestDir: "{app}"
 Source: "..\LICENSE"; DestDir: "{app}"
 Source: "THIRD_PARTY.md"; DestDir: "{app}"
+Source: "..\docs\VOICE_AWS.md"; DestDir: "{app}\docs"
+Source: "..\docs\aws-sonic-policy.example.json"; DestDir: "{app}\docs"
 [Icons]
 Name: "{group}\Assistente de IA"; Filename: "{app}\AssistantDesktop.exe"; Parameters: "--gui"
 Name: "{group}\Desinstalar"; Filename: "{uninstallexe}"

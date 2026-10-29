@@ -12,6 +12,8 @@ O código deste projeto acompanha a distribuição em um arquivo de fontes separ
 - CTranslate2: MIT, https://github.com/OpenNMT/CTranslate2
 - ONNX Runtime: MIT, https://github.com/microsoft/onnxruntime
 - sounddevice: MIT, https://github.com/spatialaudio/python-sounddevice
+- AWS SDK Bedrock Runtime, Smithy e AWS CRT: Apache-2.0,
+  https://github.com/awslabs/aws-sdk-python e https://github.com/awslabs/aws-crt-python
 
 Modelos de voz/transcrição e credenciais AWS não integram o instalador. Modelos
 escolhidos separadamente possuem suas próprias licenças e atribuições. A presença
