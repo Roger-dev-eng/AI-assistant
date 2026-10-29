@@ -4,7 +4,7 @@ Assistente híbrido em português e inglês. Comandos conhecidos executam localm
 solicitações que exigem interpretação podem usar Amazon Bedrock. Esta versão inclui
 o núcleo no terminal, interface PySide6 e leitura de buscas com Playwright.
 Voz local usa faster-whisper e Piper com modelos configurados separadamente.
-Palavra de ativação e instalador estão nos próximos marcos de
+Ativação local experimental por palavra está disponível; memória e instalador estão nos próximos marcos de
 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
 
 ## Instalação no Windows
@@ -72,14 +72,49 @@ reconhecido, com português como padrão inicial para comandos digitados.
 Captura, transcrição e síntese são locais. Áudio e WAV sintetizado ficam em memória
 e não são gravados no histórico ou em arquivos temporários. O texto revisado pode
 ser enviado à AWS ao executar uma tarefa com Bedrock habilitado. A captura nunca
-começa sozinha, inclusive com **Ler respostas** ligado. Ainda não há palavra de
-ativação. Cancelamento de carregamento/inferência é verificado entre operações;
+começa sozinha, inclusive com **Ler respostas** ligado. Cancelamento de carregamento/inferência é verificado entre operações;
 o cálculo atual pode precisar terminar antes de a thread encerrar.
 
 A integração e os fluxos de captura/reprodução foram testados com dados simulados,
 e as dependências reais importam em Python 3.12. Reconhecimento e síntese com modelos
 reais e o microfone/alto-falante do usuário ainda precisam de validação após configurar
 os arquivos. Modelos não foram baixados nesta etapa.
+
+## Palavra de ativação e segundo plano
+
+Clique **Ativar escuta** na janela ou no menu da bandeja. Com o modelo local de
+transcrição configurado, diga **Assistente, abra o Chrome** ou **Assistant, open
+Chrome**. A palavra precisa iniciar o trecho reconhecido. A janela mostra o estado
+do microfone; enquanto ele está ativo, o ícone da bandeja fica vermelho e o tooltip
+indica **MICROFONE ATIVO (local)**. Use **Parar escuta**, **Interromper**, Esc ou o menu
+da bandeja para cancelar. Sair do aplicativo aguarda a liberação do microfone.
+
+A implementação é experimental e reutiliza o faster-whisper para transcrever blocos
+de três segundos, com sobreposição de 0,75 segundo. **Enquanto a escuta estiver
+ligada, a fala ambiente desses blocos também pode ser transcrita localmente** para
+procurar a palavra. Esses textos não são exibidos, gravados ou enviados à AWS.
+Somente o comando após a ativação é apresentado para revisão. A detecção pode
+errar ou perder palavras em fronteiras de blocos e consome mais CPU/tem mais latência
+que um detector de palavra dedicado. Não é autenticação por voz.
+
+A escuta fica desligada ao abrir o programa, expira após 120 segundos por padrão
+(`WAKE_LISTEN_SECONDS`, de 15 a 600) e termina depois de capturar **um** comando.
+O trecho total do comando inclui o bloco inicial de três segundos e é limitado por
+`RECORDING_SECONDS` (mínimo efetivo de três segundos nesse modo). Após a indicação
+de ativação, **Concluir gravação** encerra a captura preservando o áudio ainda em
+buffer. A transcrição final remove a palavra de ativação e vai para o campo de
+comando, sem executar ações automaticamente. A escuta não reinicia após enviar ou
+reproduzir uma resposta; ative novamente para outra sessão.
+
+Com bandeja disponível, fechar/ocultar a janela mantém apenas essa escuta explicitamente
+ativada em segundo plano. Ao reconhecer o comando, a janela reaparece para revisão.
+Gravações manuais continuam sendo canceladas quando a janela é ocultada. Sem bandeja,
+fechar a janela encerra o aplicativo e a escuta. Uma fila pequena limita o áudio em
+memória; perda de captura, timeout ou transcrição lenta demais encerram a operação.
+
+Os testes validam áudio sobreposto, cancelamento, limite de fila, remoção da palavra e
+revisão na interface usando dados simulados. Precisão, latência e consumo de CPU com
+voz real continuam pendentes de validação com o modelo/microfone escolhidos.
 
 ## Buscas com Playwright
 

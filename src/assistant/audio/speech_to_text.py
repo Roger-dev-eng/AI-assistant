@@ -10,6 +10,10 @@ class Transcript:
     language: str
 
 
+class NoSpeechRecognized(RuntimeError):
+    """A silent/unsupported segment may be ignored while awaiting a wake phrase."""
+
+
 class SpeechToText:
     def __init__(self, model_path):
         self.path = Path(model_path).expanduser() if model_path else None
@@ -54,9 +58,9 @@ class SpeechToText:
         check_cancelled(cancelled)
         text = " ".join(words).strip()
         if not text:
-            raise RuntimeError("Nenhuma fala reconhecida. Grave novamente.")
+            raise NoSpeechRecognized("Nenhuma fala reconhecida. Grave novamente.")
         if info.language not in {"pt", "en"}:
-            raise RuntimeError(
+            raise NoSpeechRecognized(
                 "Idioma não reconhecido como português ou inglês; selecione o idioma."
             )
         return Transcript(text, info.language)

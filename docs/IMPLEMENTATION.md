@@ -47,7 +47,14 @@ O primeiro marco é a prova de conceito no terminal descrita na seção 7.
    simulados; dependências reais instaladas/importadas com Python 3.12 em `.venv312`.
    Validação com modelos reais, microfone e saída do usuário continua pendente.
    Não foram baixados modelos; conferir tamanho/licença antes de obter os arquivos.
-4. Palavra de ativação e operação em segundo plano com indicação de microfone ativo.
+4. **Implementado, experimental — ativação local e segundo plano:** escuta explícita
+   por Assistente/Assistant usando transcrição faster-whisper em blocos de 3s com
+   sobreposição de 0,75s. Sessões de 120s por padrão, máximo configurável de 600s,
+   encerradas após um comando. Indicadores na janela/bandeja, parada por ambas,
+   fila de áudio limitada e revisão obrigatória antes de executar. Não reinicia
+   automaticamente nem liga o microfone ao iniciar. Textos ambientais são processados
+   apenas localmente e descartados. Mais CPU/latência que um detector dedicado;
+   qualidade real ainda não medida. Testes usam áudio e transcrições simulados.
 5. Memória com política de retenção/remoção e seleção configurável de segundo modelo.
    O núcleo conserva contexto apenas dentro de cada tarefa; não grava conversas.
 6. PyInstaller, instalador Windows, configuração inicial e opção de iniciar com Windows.

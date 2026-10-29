@@ -106,6 +106,19 @@ class MainWindow(QMainWindow):
         voice_row.addStretch()
         layout.addLayout(voice_row)
 
+        wake_row = QHBoxLayout()
+        self.wake_button = QPushButton("Ativar escuta")
+        self.wake_button.setToolTip(
+            "Experimental: reconhece Assistente/Assistant localmente. "
+            f"Escuta por até {settings.wake_listen_seconds}s; pode consumir CPU."
+        )
+        self.microphone_label = QLabel("Microfone desligado")
+        self.microphone_label.setAccessibleName("Estado do microfone")
+        wake_row.addWidget(self.wake_button)
+        wake_row.addWidget(self.microphone_label)
+        wake_row.addStretch()
+        layout.addLayout(wake_row)
+
         self.transcript = QTextEdit()
         self.transcript.setReadOnly(True)
         self.transcript.setAcceptRichText(False)
@@ -145,6 +158,7 @@ class MainWindow(QMainWindow):
         self.clear_button.clicked.connect(self.transcript.clear)
         self.record_button.clicked.connect(self.record_command)
         self.speak_button.clicked.connect(self.speak_response)
+        self.wake_button.clicked.connect(self.toggle_wake)
         stop_action = QAction(self)
         stop_action.setShortcut(QKeySequence(Qt.Key.Key_Escape))
         stop_action.triggered.connect(self.stop_task)
@@ -182,6 +196,25 @@ class MainWindow(QMainWindow):
         self.speak_button.setEnabled(not busy and not self.exiting)
         self.language.setEnabled(not busy and not self.exiting)
         self.read_responses.setEnabled(not busy and not self.exiting)
+        self.wake_button.setEnabled((not busy or self.worker_kind == "wake") and not self.exiting)
+        self.wake_button.setText("Parar escuta" if self.worker_kind == "wake" else "Ativar escuta")
+        if self.tray is not None:
+            self.tray.update_controls()
+
+    def set_microphone_active(self, active):
+        self.microphone_label.setText(
+            "Microfone ativo · áudio local" if active else "Microfone desligado"
+        )
+        self.microphone_label.setStyleSheet("color: #b42318; font-weight: 600;" if active else "")
+        if self.tray is not None:
+            self.tray.set_microphone_active(active)
+
+    @Slot()
+    def toggle_wake(self):
+        if self.worker_kind == "wake":
+            self.stop_task()
+        else:
+            self.start_audio("wake")
 
     @Slot()
     def submit(self):
@@ -225,7 +258,9 @@ class MainWindow(QMainWindow):
     def start_audio(self, mode, text=""):
         if self.worker is not None or self.exiting:
             return
-        language = self.language.currentData() if mode == "record" else self.speech_language()
+        language = (
+            self.language.currentData() if mode in {"record", "wake"} else self.speech_language()
+        )
         self.worker = self.audio_worker_factory(
             self.settings, mode=mode, text=text, language=language, parent=self
         )
@@ -240,7 +275,7 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def record_command(self):
-        if self.worker is not None and self.worker_kind == "record":
+        if self.worker is not None and self.worker_kind in {"record", "wake"}:
             self.worker.recording_finished.set()
             self.record_button.setEnabled(False)
             self.record_button.setText("Gravar comando")
@@ -263,18 +298,25 @@ class MainWindow(QMainWindow):
         if self.worker is None or self.exiting or self.worker.cancelled.is_set():
             return
         self.state_label.setText(text)
+        self.set_microphone_active(text.startswith("Microfone ativo"))
         if self.worker_kind == "record" and text.startswith("Microfone ativo"):
             self.record_button.setText("Concluir gravação")
             self.record_button.setEnabled(True)
         elif self.worker_kind == "record":
             self.record_button.setText("Gravar comando")
             self.record_button.setEnabled(False)
+        elif self.worker_kind == "wake":
+            capturing = "ativação detectada" in text
+            self.record_button.setText("Concluir gravação" if capturing else "Gravar comando")
+            self.record_button.setEnabled(capturing)
 
     @Slot(str, str)
     def review_transcript(self, text, language):
         if self.exiting or self.worker is None or self.worker.cancelled.is_set():
             return
         self.last_detected_language = language
+        if self.worker_kind == "wake":
+            self.restore_window()
         self.command.setText(text)
         self.append_message(
             "Transcrição", text + "\nRevise o comando e clique Enviar para executar."
@@ -332,6 +374,9 @@ class MainWindow(QMainWindow):
         if self.worker is None:
             return
         self.worker.cancelled.set()
+        self.wake_button.setEnabled(False)
+        if self.tray is not None:
+            self.tray.update_controls()
         if self.pending_confirmation is not None:
             self.pending_confirmation.answer(False)
         if self.confirmation_box is not None:
@@ -345,6 +390,7 @@ class MainWindow(QMainWindow):
         kind = self.worker_kind
         self.worker = None
         self.worker_kind = None
+        self.set_microphone_active(False)
         self.record_button.setText("Gravar comando")
         if self.confirmation_box is not None:
             self.confirmation_box.close()

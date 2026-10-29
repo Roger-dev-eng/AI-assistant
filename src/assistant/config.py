@@ -23,6 +23,7 @@ class Settings:
     piper_voice_pt: str = ""
     piper_voice_en: str = ""
     recording_seconds: int = 10
+    wake_listen_seconds: int = 120
 
     def __post_init__(self):
         for value in (self.monthly_budget, self.input_rate, self.output_rate):
@@ -42,6 +43,8 @@ class Settings:
             raise ValueError("ASSISTANT_LANGUAGE must be auto, pt or en.")
         if not 1 <= self.recording_seconds <= 30:
             raise ValueError("Recording duration must be between 1 and 30 seconds.")
+        if not 15 <= self.wake_listen_seconds <= 600:
+            raise ValueError("Wake listening duration must be between 15 and 600 seconds.")
 
     @classmethod
     def from_env(cls):
@@ -63,6 +66,7 @@ class Settings:
             piper_voice_pt=os.getenv("PIPER_VOICE_PT", ""),
             piper_voice_en=os.getenv("PIPER_VOICE_EN", ""),
             recording_seconds=int(os.getenv("RECORDING_SECONDS", "10")),
+            wake_listen_seconds=int(os.getenv("WAKE_LISTEN_SECONDS", "120")),
         )
 
 

@@ -5,6 +5,7 @@ from PySide6.QtCore import QThread, Signal
 from assistant.audio.recording import check_cancelled, record_microphone
 from assistant.audio.speech_to_text import SpeechToText
 from assistant.audio.text_to_speech import TextToSpeech, play_wav
+from assistant.audio.wake_word import listen_for_command
 
 
 class AudioWorker(QThread):
@@ -37,6 +38,19 @@ class AudioWorker(QThread):
                 )
                 self.phase.emit("Transcrevendo localmente… microfone desligado.")
                 result = stt.transcribe(audio, self.language, self.cancelled)
+                check_cancelled(self.cancelled)
+                self.transcript_ready.emit(result.text, result.language)
+            elif self.mode == "wake":
+                self.phase.emit("Preparando ativação local… microfone desligado.")
+                stt = SpeechToText(self.settings.whisper_model_path)
+                result = listen_for_command(
+                    stt,
+                    self.language,
+                    self.cancelled,
+                    self.recording_finished,
+                    self.settings,
+                    self.phase.emit,
+                )
                 check_cancelled(self.cancelled)
                 self.transcript_ready.emit(result.text, result.language)
             elif self.mode == "speak":

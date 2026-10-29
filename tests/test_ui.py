@@ -233,3 +233,41 @@ def test_missing_piper_voice_does_not_break_text_conversation(app, make_window):
     wait_until(app, lambda: window.worker is None)
     assert "PIPER_VOICE" in window.transcript.toPlainText()
     assert window.send_button.isEnabled()
+
+
+def test_wake_command_restores_window_and_requires_review(app, make_window):
+    task_factory = Mock()
+    with patch(
+        "assistant.ui.audio_worker.listen_for_command", return_value=Transcript("Open Chrome", "en")
+    ):
+        window = make_window(worker_factory=task_factory)
+        window.hide()
+        window.toggle_wake()
+        wait_until(app, lambda: window.worker is None)
+    assert window.isVisible()
+    assert window.command.text() == "Open Chrome"
+    assert window.last_detected_language == "en"
+    assert window.microphone_label.text() == "Microfone desligado"
+    task_factory.assert_not_called()
+
+
+def test_stopping_wake_listener_closes_microphone_without_restarting(app, make_window):
+    def listen(stt, language, cancelled, finished, settings, phase):
+        phase("Microfone ativo · aguardando Assistente ou Assistant…")
+        cancelled.wait(4)
+        if cancelled.is_set():
+            raise InterruptedError()
+        raise RuntimeError("Expected cancellation")
+
+    with patch("assistant.ui.audio_worker.listen_for_command", side_effect=listen):
+        window = make_window()
+        window.toggle_wake()
+        wait_until(app, lambda: "ativo" in window.microphone_label.text())
+        assert window.wake_button.isEnabled()
+        assert window.wake_button.text() == "Parar escuta"
+        assert not window.send_button.isEnabled()
+        window.toggle_wake()
+        wait_until(app, lambda: window.worker is None)
+    assert window.command.text() == ""
+    assert window.wake_button.text() == "Ativar escuta"
+    assert window.microphone_label.text() == "Microfone desligado"
