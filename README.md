@@ -12,7 +12,7 @@ Windows. O estado da validação está em [docs/IMPLEMENTATION.md](docs/IMPLEMEN
 ## Executável e instalação
 
 O build gera `dist/AssistantDesktop/AssistantDesktop.exe` (aplicativo portátil, com
-toda a pasta ao lado) e `dist/installer/AssistantDesktop-0.2.0-Setup.exe` (instalador
+toda a pasta ao lado) e `dist/installer/AssistantDesktop-0.2.1-Setup.exe` (instalador
 por usuário, sem privilégios de administrador). O instalador oferece atalhos e
 desinstalação; a configuração inicial oferece início com Windows desmarcado por padrão. Modelos e credenciais
 não são distribuídos. A primeira abertura mostra a configuração inicial; o microfone

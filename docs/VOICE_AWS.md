@@ -1,4 +1,4 @@
-# Voz com Nova 2 Sonic — versão 0.2.0
+# Voz com Nova 2 Sonic — versão 0.2.1
 
 O aplicativo oferece dois modos: Whisper/Piper local e Nova 2 Sonic na AWS.
 O modo local continua selecionado por padrão para não enviar áudio sem escolha.

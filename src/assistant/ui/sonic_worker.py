@@ -1,6 +1,7 @@
 import io
 import time
 import wave
+from threading import Event
 
 from PySide6.QtCore import Signal
 
@@ -36,6 +37,7 @@ class SonicWorker(TaskWorker):
         )
         self.language, self.wake = language, wake
         self.sonic_factory = provider_factory
+        self.recording_finished = Event()
 
     def run(self):
         tracker, memory = None, None

@@ -2,6 +2,15 @@
 
 Validado em 29/10/2026, Windows x64 e Python 3.12.14.
 
+## Correção 0.2.1 — início da gravação Sonic
+
+- Inicializa o evento `recording_finished` no `SonicWorker`, corrigindo o erro
+  de atributo ausente antes da captura.
+- Dois testes de integração do worker cobrem gravação manual e ativação local,
+  desde a captura simulada até o envio de PCM ao provedor simulado.
+- Esses testes não usam microfone, AWS nem ações reais do Windows.
+- Suíte completa: 196 testes passaram; Ruff passou.
+
 ## Atualização 0.2.0 — voz AWS
 
 - 194 testes automatizados passaram; Ruff passou.
