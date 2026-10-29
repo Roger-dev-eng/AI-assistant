@@ -19,6 +19,10 @@ Validado em 29/10/2026, Windows x64 e Python 3.12.14.
   bloqueada pelo Controle de Aplicativos do Windows. O evento Code Integrity
   3077 informa requisito de assinatura/política de integridade. Portanto, o
   diagnóstico de execução do pacote 0.2.0 não está validado nesta máquina.
+- Inno Setup compilou o instalador 0.2.0 com sucesso. A estrutura do pacote
+  contém o provedor Sonic, o worker e os módulos do SDK/CRT. O instalador não
+  foi executado: o aplicativo anterior está aberto e a política do Windows
+  bloqueia o executável novo. Nenhuma política do Windows foi alterada.
 - Não há conversa contínua ou interrupção por voz: cada ativação captura uma
   frase, processa e reproduz; o microfone permanece desligado durante a resposta.
 
