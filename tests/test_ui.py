@@ -8,8 +8,10 @@ import pytest
 
 pytest.importorskip("PySide6")
 
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from assistant.audio.speech_to_text import Transcript
 from assistant.config import Settings
 from assistant.ui.main_window import MainWindow
 from assistant.ui.worker import TaskWorker
@@ -17,7 +19,9 @@ from assistant.ui.worker import TaskWorker
 
 @pytest.fixture(scope="module")
 def app():
-    return QApplication.instance() or QApplication([])
+    application = QApplication.instance() or QApplication([])
+    application.setQuitOnLastWindowClosed(False)
+    return application
 
 
 def wait_until(app, condition, timeout=8):
@@ -46,6 +50,8 @@ def make_window(app, tmp_path):
             assert window.worker.wait(8000)
             app.processEvents()
         window.request_exit()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()
 
 
@@ -152,4 +158,78 @@ def test_tray_hides_restores_and_exits(app, tmp_path):
             tray.return_value.hide.assert_called_once()
         finally:
             window.request_exit()
+            window.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
             app.processEvents()
+
+
+def test_voice_transcript_is_reviewed_before_any_execution(app, make_window):
+    task_factory = Mock()
+    with (
+        patch("assistant.ui.audio_worker.SpeechToText") as stt,
+        patch("assistant.ui.audio_worker.record_microphone", return_value=object()),
+    ):
+        stt.return_value.transcribe.return_value = Transcript("Abra o Chrome", "pt")
+        window = make_window(worker_factory=task_factory)
+        window.record_command()
+        wait_until(app, lambda: window.worker is None)
+    assert window.command.text() == "Abra o Chrome"
+    assert "Revise o comando" in window.transcript.toPlainText()
+    assert window.send_button.isEnabled()
+    task_factory.assert_not_called()
+
+
+def test_microphone_is_not_opened_when_model_is_missing(app, make_window):
+    with patch("assistant.ui.audio_worker.record_microphone") as microphone:
+        window = make_window()
+        window.record_command()
+        wait_until(app, lambda: window.worker is None)
+    microphone.assert_not_called()
+    assert "WHISPER_MODEL_PATH" in window.transcript.toPlainText()
+
+
+def test_stopping_recording_discards_transcript(app, make_window):
+    def capture(cancelled, finished, seconds, on_recording):
+        on_recording()
+        cancelled.wait(4)
+        if cancelled.is_set():
+            raise InterruptedError()
+        raise RuntimeError("Test capture was not cancelled")
+
+    with (
+        patch("assistant.ui.audio_worker.SpeechToText") as stt,
+        patch("assistant.ui.audio_worker.record_microphone", side_effect=capture),
+    ):
+        window = make_window()
+        window.record_command()
+        wait_until(app, lambda: window.record_button.text() == "Concluir gravação")
+        window.stop_task()
+        wait_until(app, lambda: window.worker is None)
+    assert window.command.text() == ""
+    stt.return_value.transcribe.assert_not_called()
+    assert window.record_button.text() == "Gravar comando"
+
+
+def test_optional_spoken_reply_starts_after_task_finishes(app, make_window):
+    with (
+        patch("assistant.ui.audio_worker.TextToSpeech") as tts,
+        patch("assistant.ui.audio_worker.play_wav") as play,
+    ):
+        tts.return_value.synthesize.return_value = b"audio"
+        window = make_window(dry_run=True)
+        window.read_responses.setChecked(True)
+        window.language.setCurrentIndex(window.language.findData("en"))
+        submit(window, "Open Notepad")
+        wait_until(app, lambda: window.worker is None)
+    play.assert_called_once()
+    assert tts.return_value.synthesize.call_args.args[1] == "en"
+    assert window.send_button.isEnabled()
+
+
+def test_missing_piper_voice_does_not_break_text_conversation(app, make_window):
+    window = make_window()
+    window.last_response = "Olá"
+    window.speak_response()
+    wait_until(app, lambda: window.worker is None)
+    assert "PIPER_VOICE" in window.transcript.toPlainText()
+    assert window.send_button.isEnabled()

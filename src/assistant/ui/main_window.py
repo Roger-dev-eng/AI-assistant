@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QAction, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from assistant.cloud.usage_tracker import UsageTracker
+from assistant.ui.audio_worker import AudioWorker
 from assistant.ui.system_tray import SystemTray
 from assistant.ui.worker import TaskWorker
 
@@ -31,12 +33,18 @@ class MainWindow(QMainWindow):
         force_offline=False,
         enable_tray=True,
         worker_factory=TaskWorker,
+        audio_worker_factory=AudioWorker,
     ):
         super().__init__()
         self.settings = settings
         self.database_path = database_path
         self.worker_factory = worker_factory
+        self.audio_worker_factory = audio_worker_factory
         self.worker = None
+        self.worker_kind = None
+        self.last_response = ""
+        self.last_detected_language = "pt"
+        self.queued_speech = ""
         self.pending_confirmation = None
         self.confirmation_box = None
         self.exiting = False
@@ -73,6 +81,30 @@ class MainWindow(QMainWindow):
         self.clear_button = QPushButton("Limpar conversa")
         options.addWidget(self.clear_button)
         layout.addLayout(options)
+
+        voice_row = QHBoxLayout()
+        self.language = QComboBox()
+        self.language.addItem("Automático (fala)", "auto")
+        self.language.addItem("Português", "pt")
+        self.language.addItem("English", "en")
+        self.language.setCurrentIndex(self.language.findData(settings.language))
+        self.language.setAccessibleName("Idioma da voz")
+        self.language.setToolTip(
+            "Automático detecta a fala; leitura usa o último idioma detectado ou português."
+        )
+        self.record_button = QPushButton("Gravar comando")
+        self.record_button.setToolTip(
+            f"Ativa o microfone por até {settings.recording_seconds}s. Revise antes de enviar."
+        )
+        self.speak_button = QPushButton("Ler seleção/resposta")
+        self.read_responses = QCheckBox("Ler respostas")
+        self.read_responses.setChecked(settings.voice_enabled)
+        voice_row.addWidget(self.language)
+        voice_row.addWidget(self.record_button)
+        voice_row.addWidget(self.speak_button)
+        voice_row.addWidget(self.read_responses)
+        voice_row.addStretch()
+        layout.addLayout(voice_row)
 
         self.transcript = QTextEdit()
         self.transcript.setReadOnly(True)
@@ -111,6 +143,8 @@ class MainWindow(QMainWindow):
         self.send_button.clicked.connect(self.submit)
         self.stop_button.clicked.connect(self.stop_task)
         self.clear_button.clicked.connect(self.transcript.clear)
+        self.record_button.clicked.connect(self.record_command)
+        self.speak_button.clicked.connect(self.speak_response)
         stop_action = QAction(self)
         stop_action.setShortcut(QKeySequence(Qt.Key.Key_Escape))
         stop_action.triggered.connect(self.stop_task)
@@ -144,6 +178,10 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(busy and not self.exiting)
         self.cloud.setEnabled(not busy and not self.force_offline and not self.exiting)
         self.simulation.setEnabled(not busy and not self.exiting)
+        self.record_button.setEnabled(not busy and not self.exiting)
+        self.speak_button.setEnabled(not busy and not self.exiting)
+        self.language.setEnabled(not busy and not self.exiting)
+        self.read_responses.setEnabled(not busy and not self.exiting)
 
     @Slot()
     def submit(self):
@@ -158,6 +196,7 @@ class MainWindow(QMainWindow):
         self.worker = self.worker_factory(
             text, settings, self.database_path, self.simulation.isChecked(), parent=self
         )
+        self.worker_kind = "task"
         self.worker.result.connect(self.show_result)
         self.worker.failed.connect(self.show_error)
         self.worker.confirmation_requested.connect(self.ask_confirmation)
@@ -170,6 +209,76 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def show_result(self, text):
         self.append_message("Assistente", text)
+        self.last_response = text
+        if (
+            self.read_responses.isChecked()
+            and not self.exiting
+            and self.worker is not None
+            and not self.worker.cancelled.is_set()
+        ):
+            self.queued_speech = text
+
+    def speech_language(self):
+        selected = self.language.currentData()
+        return self.last_detected_language if selected == "auto" else selected
+
+    def start_audio(self, mode, text=""):
+        if self.worker is not None or self.exiting:
+            return
+        language = self.language.currentData() if mode == "record" else self.speech_language()
+        self.worker = self.audio_worker_factory(
+            self.settings, mode=mode, text=text, language=language, parent=self
+        )
+        self.worker_kind = mode
+        self.worker.failed.connect(self.show_error)
+        self.worker.phase.connect(self.audio_phase)
+        self.worker.transcript_ready.connect(self.review_transcript)
+        self.worker.finished.connect(self.task_finished)
+        self.set_busy(True)
+        self.state_label.setText("Preparando áudio… microfone desligado.")
+        self.worker.start()
+
+    @Slot()
+    def record_command(self):
+        if self.worker is not None and self.worker_kind == "record":
+            self.worker.recording_finished.set()
+            self.record_button.setEnabled(False)
+            self.record_button.setText("Gravar comando")
+            return
+        self.start_audio("record")
+
+    @Slot()
+    def speak_response(self):
+        selection = self.transcript.textCursor().selectedText().replace("\u2029", "\n")
+        text = selection or self.last_response
+        if not text.strip():
+            self.append_message(
+                "Voz", "Selecione um texto ou envie um comando antes de pedir a leitura."
+            )
+            return
+        self.start_audio("speak", text)
+
+    @Slot(str)
+    def audio_phase(self, text):
+        if self.worker is None or self.exiting or self.worker.cancelled.is_set():
+            return
+        self.state_label.setText(text)
+        if self.worker_kind == "record" and text.startswith("Microfone ativo"):
+            self.record_button.setText("Concluir gravação")
+            self.record_button.setEnabled(True)
+        elif self.worker_kind == "record":
+            self.record_button.setText("Gravar comando")
+            self.record_button.setEnabled(False)
+
+    @Slot(str, str)
+    def review_transcript(self, text, language):
+        if self.exiting or self.worker is None or self.worker.cancelled.is_set():
+            return
+        self.last_detected_language = language
+        self.command.setText(text)
+        self.append_message(
+            "Transcrição", text + "\nRevise o comando e clique Enviar para executar."
+        )
 
     @Slot(str)
     def show_error(self, text):
@@ -219,6 +328,7 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def stop_task(self):
+        self.queued_speech = ""
         if self.worker is None:
             return
         self.worker.cancelled.set()
@@ -232,7 +342,10 @@ class MainWindow(QMainWindow):
     @Slot()
     def task_finished(self):
         worker = self.worker
+        kind = self.worker_kind
         self.worker = None
+        self.worker_kind = None
+        self.record_button.setText("Gravar comando")
         if self.confirmation_box is not None:
             self.confirmation_box.close()
         if worker is not None:
@@ -243,6 +356,10 @@ class MainWindow(QMainWindow):
             self.close()
         else:
             self.command.setFocus()
+            if kind == "task" and self.queued_speech:
+                text = self.queued_speech
+                self.queued_speech = ""
+                self.start_audio("speak", text)
 
     @Slot()
     def restore_window(self):
@@ -252,7 +369,7 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def hide_to_tray(self):
-        if self.pending_confirmation is not None:
+        if self.pending_confirmation is not None or self.worker_kind == "record":
             self.stop_task()
         self.hide()
 

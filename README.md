@@ -3,7 +3,8 @@
 Assistente híbrido em português e inglês. Comandos conhecidos executam localmente;
 solicitações que exigem interpretação podem usar Amazon Bedrock. Esta versão inclui
 o núcleo no terminal, interface PySide6 e leitura de buscas com Playwright.
-Voz, palavra de ativação e instalador estão nos próximos marcos de
+Voz local usa faster-whisper e Piper com modelos configurados separadamente.
+Palavra de ativação e instalador estão nos próximos marcos de
 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
 
 ## Instalação no Windows
@@ -17,8 +18,68 @@ py -3.12 -m venv .venv
 Copy-Item .env.example .env
 ```
 
-O extra `voice` reserva as dependências da próxima fase; instalá-lo ainda não
-habilita reconhecimento ou resposta por voz.
+Para usar voz, instale também o extra `voice` e configure os modelos conforme abaixo.
+
+## Voz local
+
+```powershell
+.\.venv\Scripts\python -m pip install -e ".[voice]"
+```
+
+Use Python 3.12: o ONNX Runtime necessário às bibliotecas de voz não estava disponível
+para Python 3.15 durante a validação. Foi criado neste ambiente um `.venv312` separado,
+com todas as dependências instaladas. Para abrir usando esse ambiente:
+
+```powershell
+.\.venv312\Scripts\python -m assistant --gui --offline
+```
+
+Configure no `.env` caminhos para modelos que já estejam no disco:
+
+```dotenv
+WHISPER_MODEL_PATH=C:/modelos/faster-whisper-tiny
+PIPER_VOICE_PT=C:/modelos/pt_BR-voz-medium.onnx
+PIPER_VOICE_EN=C:/modelos/en_US-voz-medium.onnx
+ASSISTANT_LANGUAGE=auto
+ASSISTANT_VOICE_ENABLED=false
+RECORDING_SECONDS=10
+```
+
+Os nomes acima são exemplos de caminhos. O modelo de transcrição precisa estar no
+formato CTranslate2 do faster-whisper, com `model.bin`, `config.json`, `tokenizer.json`
+e `preprocessor_config.json`. Cada voz Piper requer o arquivo `.onnx` e o arquivo
+`.onnx.json` com o mesmo nome ao lado. Consulte o [modelo de referência do
+faster-whisper](https://huggingface.co/Systran/faster-whisper-tiny) e o [catálogo de
+vozes Piper](https://huggingface.co/rhasspy/piper-voices/tree/main). Confira o tamanho
+dos arquivos e a licença da voz escolhida antes de baixar. O aplicativo não baixa
+modelos nem importa o perfil de outros programas.
+
+Na interface, **Gravar comando** prepara o modelo local antes de ativar o microfone.
+A indicação **Microfone ativo** aparece durante a captura, por até 10 segundos por
+padrão (configurável de 1 a 30). **Concluir gravação** encerra a captura e transcreve;
+**Interromper** descarta a operação. O texto reconhecido fica no campo de comando
+para revisão e só é executado quando você clica **Enviar**. Áudio silencioso, muito
+curto ou com perda de captura é rejeitado. Fechar/ocultar a janela durante uma
+gravação cancela a captura.
+
+**Ler seleção/resposta** sintetiza o trecho selecionado ou a última resposta com
+Piper. **Ler respostas** habilita leitura automática após a tarefa; o padrão vem de
+`ASSISTANT_VOICE_ENABLED`. A leitura aceita até 2000 caracteres; para respostas
+maiores, selecione um trecho. Selecione Português ou English para fixar o idioma.
+O modo automático detecta o idioma da fala; na leitura, usa o último idioma
+reconhecido, com português como padrão inicial para comandos digitados.
+
+Captura, transcrição e síntese são locais. Áudio e WAV sintetizado ficam em memória
+e não são gravados no histórico ou em arquivos temporários. O texto revisado pode
+ser enviado à AWS ao executar uma tarefa com Bedrock habilitado. A captura nunca
+começa sozinha, inclusive com **Ler respostas** ligado. Ainda não há palavra de
+ativação. Cancelamento de carregamento/inferência é verificado entre operações;
+o cálculo atual pode precisar terminar antes de a thread encerrar.
+
+A integração e os fluxos de captura/reprodução foram testados com dados simulados,
+e as dependências reais importam em Python 3.12. Reconhecimento e síntese com modelos
+reais e o microfone/alto-falante do usuário ainda precisam de validação após configurar
+os arquivos. Modelos não foram baixados nesta etapa.
 
 ## Buscas com Playwright
 
@@ -135,7 +196,8 @@ Confira cobertura/expiração dos créditos e configure alertas AWS Budgets à p
 
 `src/assistant/core`: roteador, executor e orquestrador; `ai`: Converse e prompt;
 `tools`: catálogo e ações Windows; `cloud`: consumo SQLite; `security`: confirmação;
-`ui`: janela, worker e bandeja. SQLite e automação COM são inicializados na thread
+`ui`: janela, worker e bandeja; `audio`: captura, transcrição e síntese locais.
+SQLite e automação COM são inicializados na thread
 que executa cada tarefa. Testes de interface usam o Qt em modo `offscreen` e são
 ignorados quando o extra `desktop` não está instalado.
 Os testes não alteram volume e não chamam a AWS. Os testes de navegador iniciam

@@ -39,8 +39,14 @@ O primeiro marco é a prova de conceito no terminal descrita na seção 7.
    Busca real no YouTube validada, retornando cinco vídeos. Busca real no Google
    atingiu timeout sem resultados; CAPTCHA/consentimento ou mudanças de layout podem
    impedir a leitura. Não houve chamada à AWS nem abertura de um resultado real.
-3. faster-whisper e Piper: microfone com ativação explícita, seleção de idioma,
-   modelos locais e saída de voz. Não baixar modelos sem informar tamanho/licença.
+3. **Implementado — faster-whisper e Piper:** captura explícita e limitada em memória,
+   transcrição CPU/int8 de modelos locais com `local_files_only`, seleção PT/EN/auto,
+   revisão do texto antes de enviar e reprodução Piper opcional/manual. Modelos
+   ausentes, silêncio, perda de áudio e cancelamento são tratados sem executar texto
+   parcial. Áudio não é salvo em disco. Testes de áudio e interface usam dados
+   simulados; dependências reais instaladas/importadas com Python 3.12 em `.venv312`.
+   Validação com modelos reais, microfone e saída do usuário continua pendente.
+   Não foram baixados modelos; conferir tamanho/licença antes de obter os arquivos.
 4. Palavra de ativação e operação em segundo plano com indicação de microfone ativo.
 5. Memória com política de retenção/remoção e seleção configurável de segundo modelo.
    O núcleo conserva contexto apenas dentro de cada tarefa; não grava conversas.
@@ -86,3 +92,6 @@ necessários. Não houve provisionamento AWS nem alteração do perfil neste mar
 - [Qt: bandeja do sistema](https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QSystemTrayIcon.html)
 - [Playwright: contextos isolados e interceptação](https://playwright.dev/python/docs/api/class-browsercontext)
 - [Playwright: leitura por locators](https://playwright.dev/python/docs/locators)
+- [faster-whisper: uso e modelos locais](https://github.com/SYSTRAN/faster-whisper)
+- [Piper: API Python](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/API_PYTHON.md)
+- [sounddevice: streams de áudio](https://python-sounddevice.readthedocs.io/en/latest/api/streams.html)

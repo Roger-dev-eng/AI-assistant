@@ -17,6 +17,12 @@ class Settings:
     max_output_tokens: int = 512
     max_input_bytes: int = 24000
     max_tool_rounds: int = 5
+    language: str = "auto"
+    voice_enabled: bool = False
+    whisper_model_path: str = ""
+    piper_voice_pt: str = ""
+    piper_voice_en: str = ""
+    recording_seconds: int = 10
 
     def __post_init__(self):
         for value in (self.monthly_budget, self.input_rate, self.output_rate):
@@ -32,6 +38,10 @@ class Settings:
             <= 0
         ):
             raise ValueError("Request and token limits must be positive.")
+        if self.language not in {"auto", "pt", "en"}:
+            raise ValueError("ASSISTANT_LANGUAGE must be auto, pt or en.")
+        if not 1 <= self.recording_seconds <= 30:
+            raise ValueError("Recording duration must be between 1 and 30 seconds.")
 
     @classmethod
     def from_env(cls):
@@ -47,6 +57,12 @@ class Settings:
             max_output_tokens=int(os.getenv("MAX_OUTPUT_TOKENS", "512")),
             max_input_bytes=int(os.getenv("MAX_INPUT_BYTES", "24000")),
             max_tool_rounds=int(os.getenv("MAX_TOOL_ROUNDS", "5")),
+            language=os.getenv("ASSISTANT_LANGUAGE", "auto"),
+            voice_enabled=os.getenv("ASSISTANT_VOICE_ENABLED", "false").lower() == "true",
+            whisper_model_path=os.getenv("WHISPER_MODEL_PATH", ""),
+            piper_voice_pt=os.getenv("PIPER_VOICE_PT", ""),
+            piper_voice_en=os.getenv("PIPER_VOICE_EN", ""),
+            recording_seconds=int(os.getenv("RECORDING_SECONDS", "10")),
         )
 
 
