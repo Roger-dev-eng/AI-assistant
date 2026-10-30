@@ -1,4 +1,4 @@
-#define AppVersion "0.3.10"
+#define AppVersion "0.3.11"
 [Setup]
 AppId={{44C09BA1-FB5D-48D9-B9EC-807091F28B06}
 AppName=Assistente de IA
@@ -185,8 +185,7 @@ begin
     except
       Log('Old metadata could not be safely cleaned; files preserved.');
     end;
-    Log(Format('CONTENT UPDATE: %d unchanged files kept; %d files selected for installation.',
-      [FilesKept, FilesUpdated]));
+    Log(Format('CONTENT UPDATE: %d unchanged files kept; %d files selected for installation.', [FilesKept, FilesUpdated]));
   end;
 end;
 

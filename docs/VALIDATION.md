@@ -2,6 +2,17 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Correção 0.3.11 — compilação do instalador
+
+- Na 0.3.10, os testes e o diagnóstico do executável passaram. A compilação do
+  instalador falhou com `Invalid section tag` na linha que iniciava o array de
+  argumentos de `Format` com `[`. A release não foi publicada e a verificação de
+  reinstalação não executou.
+- A chamada foi colocada na mesma linha, evitando a interpretação como seção do
+  arquivo Inno Setup. As regras de atualização e preservação de dados permanecem.
+- A compilação e a verificação de reinstalação ficam para o Actions. Nenhuma suíte
+  ou instalação foi executada localmente nesta correção.
+
 ## Versão 0.3.10 — atualização por conteúdo e identidade da versão
 
 - Na máquina do usuário, o instalador 0.3.9 terminou com sucesso e substituiu o
