@@ -19,6 +19,8 @@ jobs:
     needs: tests
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      ASSISTANT_LOG_DIR: ${{ runner.temp }}/assistant-diagnostics
     permissions:
       contents: write
     steps:
@@ -63,6 +65,18 @@ jobs:
           if (!(Test-Path -LiteralPath $compiler)) { throw 'Inno Setup compiler is required on the runner.' }
           & $compiler packaging/windows.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Collect native Windows crash events
+        if: always()
+        shell: pwsh
+        run: ./scripts/collect_crash_events.ps1
+      - name: Upload frozen application diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frozen-application-diagnostics
+          path: |
+            ${{ runner.temp }}/assistant-diagnostics/
+            ${{ runner.temp }}/diagnostics.json
       - name: Package source and SHA256 checksums
         shell: pwsh
         run: |

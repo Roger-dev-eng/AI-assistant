@@ -52,12 +52,17 @@ def main():
     if args.gui:
         if args.command:
             parser.error("--gui does not accept a terminal command")
+        from assistant.runtime_log import configure, mark
+
+        configure()
+        mark("desktop.imports.begin")
         try:
             from assistant.ui.app import run_desktop
         except ModuleNotFoundError as exc:
             if exc.name and exc.name.startswith("PySide6"):
                 parser.error('Install the desktop extra: python -m pip install -e ".[desktop]"')
             raise
+        mark("desktop.imports.end")
         return run_desktop(settings, args.dry_run, args.offline, args.tray, args.setup)
     settings = select_model(settings, args.secondary)
     tracker = UsageTracker(data_path())

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from assistant.ai.model_selector import select_model
 from assistant.cloud.usage_tracker import UsageTracker
+from assistant.runtime_log import mark
 from assistant.storage.memory import ConversationMemory
 from assistant.ui.audio_worker import AudioWorker
 from assistant.ui.settings_dialog import SettingsDialog
@@ -235,11 +236,18 @@ class MainWindow(QMainWindow):
         menu.addAction("Sair", self.request_exit)
 
         self.tray = None
+        mark("tray.availability.begin")
         if enable_tray and QSystemTrayIcon.isSystemTrayAvailable():
+            mark("tray.availability.end", available=True)
+            mark("tray.create.begin")
             self.tray = SystemTray(self)
+            mark("tray.create.end")
+            mark("tray.show.begin")
             self.tray.show()
+            mark("tray.show.end")
             menu.addAction("Ocultar na bandeja", self.hide_to_tray)
             self.statusBar().showMessage("Fechar a janela mantém o assistente na bandeja.")
+        mark("tray.setup.end", available=self.tray is not None)
         tracker = UsageTracker(database_path)
         try:
             self.update_usage(*tracker.summary())
@@ -316,6 +324,7 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def prepare_update_shutdown(self):
+        mark("update.shutdown.prepare")
         self.exiting = True
         self.queued_speech = ""
         self.set_busy(True)
@@ -639,6 +648,8 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def request_exit(self):
+        mark("window.exit.request", worker=self.worker is not None,
+             dialog=self.update_dialog is not None)
         self.exiting = True
         if self.update_dialog is not None:
             self.update_dialog.reject()
@@ -651,6 +662,8 @@ class MainWindow(QMainWindow):
             self.close()
 
     def closeEvent(self, event):
+        mark("window.close.begin", worker=self.worker is not None,
+             dialog=self.update_dialog is not None, exiting=self.exiting)
         if self.update_dialog is not None:
             self.request_exit()
             event.ignore()
@@ -664,7 +677,11 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         if self.tray is not None:
+            mark("tray.hide.begin")
             self.tray.hide()
+            mark("tray.hide.end")
         event.accept()
         self.exiting = True
+        mark("window.close.accepted")
         self.exit_ready.emit()
+        mark("window.exit_ready.emitted")

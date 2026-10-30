@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from assistant.runtime_log import mark
 from assistant.updates import (
     check_update,
     current_version,
@@ -39,6 +40,7 @@ class UpdateJob(QThread):
         self.cancelled = Event()
 
     def run(self):
+        mark("update.worker.begin", stage=self.operation)
         try:
             if self.operation == "check":
                 value = check_update()
@@ -54,7 +56,10 @@ class UpdateJob(QThread):
         except InterruptedError:
             self.failed.emit("Atualização cancelada.")
         except Exception as exc:
+            mark("update.worker.failed", stage=self.operation, error_type=type(exc).__name__)
             self.failed.emit(str(exc))
+        finally:
+            mark("update.worker.end", stage=self.operation)
 
 
 class UpdateDialog(QDialog):
@@ -159,14 +164,18 @@ class UpdateDialog(QDialog):
             self.ready = True
 
     def finished_job(self):
+        mark("update.worker.wait.begin")
         if not self.job.wait(1000):
+            mark("update.worker.wait.pending")
             self.status.setText("Aguardando o encerramento do processo de atualização…")
             QTimer.singleShot(100, self.finished_job)
             return
         operation = self.job.operation
+        mark("update.worker.wait.end", stage=operation)
         self.job.deleteLater()
         self.job = None
         if self.ready:
+            mark("update.install.handoff")
             self.accept()
             self.install_ready.emit()
         elif self.closing:

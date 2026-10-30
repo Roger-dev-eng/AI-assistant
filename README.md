@@ -290,6 +290,7 @@ O desenvolvimento deste projeto reúne práticas de:
 
 ## Documentação complementar
 
+- [Logs e diagnóstico de falhas](docs/DIAGNOSTICS.md)
 - [Plano e estado da implementação](docs/IMPLEMENTATION.md)
 - [Configuração do Nova 2 Sonic](docs/VOICE_AWS.md)
 - [Exemplo de permissão para o modelo de texto](docs/aws-policy.example.json)

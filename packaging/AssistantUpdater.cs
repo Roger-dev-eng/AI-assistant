@@ -13,6 +13,26 @@ using System.Web.Script.Serialization;
 internal static class AssistantUpdater
 {
     private static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
+    private static string tracePath;
+
+    private static void Trace(string stage, int? code = null, string errorType = null)
+    {
+        if (tracePath == null) return;
+        try
+        {
+            using (var stream = new FileStream(tracePath, FileMode.Append, FileAccess.Write, FileShare.Read))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                writer.WriteLine(Json.Serialize(new {
+                    time = DateTime.UtcNow.ToString("o"), pid = Process.GetCurrentProcess().Id,
+                    stage = stage, code = code, error_type = errorType
+                }));
+                writer.Flush();
+                stream.Flush(true);
+            }
+        }
+        catch { } // Diagnostics must not change update behavior.
+    }
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBox(IntPtr owner, string text, string title, uint type);
@@ -137,6 +157,9 @@ internal static class AssistantUpdater
                 !Regex.IsMatch(hash, @"\A[a-f0-9]{64}\z"))
                 throw new InvalidDataException("Parâmetros de atualização inválidos.");
 
+            tracePath = Path.Combine(cache, "updater-" + Process.GetCurrentProcess().Id + ".jsonl");
+            Trace("manifest.validated");
+
             Process previous = null;
             try { previous = Process.GetProcessById(Convert.ToInt32(data["process"])); }
             catch (ArgumentException) { }
@@ -151,12 +174,19 @@ internal static class AssistantUpdater
                     }), new UTF8Encoding(false));
                 File.WriteAllText(ready, "ready");
                 readySent = true;
+                Trace("application.exit.wait.begin");
                 if (previous != null && !previous.WaitForExit(120000))
                     throw new TimeoutException("O aplicativo não encerrou a tempo. Nenhum processo foi forçado a fechar.");
             }
+            Trace("application.exit.wait.end");
+            Trace("instances.wait.begin");
             WaitForAllInstances(executable);
+            Trace("instances.wait.end");
+            Trace("image.release.wait.begin");
             WaitForImageRelease(executable);
+            Trace("image.release.wait.end");
 
+            Trace("installer.hash.begin");
             using (var source = File.OpenRead(installer))
             using (var sha = SHA256.Create())
             {
@@ -164,6 +194,8 @@ internal static class AssistantUpdater
                 if (actual != hash)
                     throw new InvalidDataException("O instalador mudou antes da instalação. Atualização cancelada.");
             }
+            Trace("installer.hash.end");
+            Trace("installer.start");
             string options = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS " +
                              "/NORESTARTAPPLICATIONS /DIR=\"" + directory + "\" /LOG=\"" + log + "\"";
             using (Process installation = Process.Start(new ProcessStartInfo(installer, options) {
@@ -172,6 +204,7 @@ internal static class AssistantUpdater
             }))
             {
                 installation.WaitForExit();
+                Trace("installer.exit", installation.ExitCode);
                 if (installation.ExitCode != 0)
                     throw new InvalidOperationException(
                         (installation.ExitCode == 5 ?
@@ -181,11 +214,14 @@ internal static class AssistantUpdater
             }
             Status(status, true, "Atualização instalada.");
             File.Delete(marker);
+            Trace("application.restart.begin");
             Restart(executable);
+            Trace("application.restart.end");
             return 0;
         }
         catch (Exception error)
         {
+            Trace("update.failed", null, error.GetType().Name);
             if (marker != null) { try { File.Delete(marker); } catch { } }
             if (status != null)
             {

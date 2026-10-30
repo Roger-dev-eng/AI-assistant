@@ -2,10 +2,17 @@ import os
 import sys
 from pathlib import Path
 
+from assistant.runtime_log import configure, mark
+
+configure()
+mark("bootstrap.imports.begin")
+
 if getattr(sys, "frozen", False):
     os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(Path(sys._MEIPASS) / "browsers")
 
 from assistant.main import main
+
+mark("bootstrap.imports.end")
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:

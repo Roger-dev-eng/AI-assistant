@@ -181,12 +181,16 @@ def test_desktop_process_exits_after_explicit_shutdown(tmp_path):
 
     (tmp_path / "settings.json").write_text("{}", "utf-8")
     script = (
+        "from assistant.runtime_log import configure, mark\n"
+        "configure()\n"
+        "mark('shutdown_test.imports.begin')\n"
         "from unittest.mock import patch\n"
         "from PySide6.QtCore import QTimer\n"
         "from PySide6.QtWidgets import QApplication\n"
         "from assistant.config import Settings\n"
         "from assistant.ui.app import run_desktop\n"
         "from assistant.ui.main_window import MainWindow\n"
+        "mark('shutdown_test.imports.end')\n"
         "class ClosingWindow(MainWindow):\n"
         "    def __init__(self, *args, **kwargs):\n"
         "        super().__init__(*args, **kwargs)\n"
@@ -195,13 +199,25 @@ def test_desktop_process_exits_after_explicit_shutdown(tmp_path):
         "with patch('assistant.ui.app.MainWindow', ClosingWindow):\n"
         "    raise SystemExit(run_desktop(Settings(), dry_run=True, force_offline=True))\n"
     )
-    environment = dict(os.environ, ASSISTANT_DATA_DIR=str(tmp_path), QT_QPA_PLATFORM="offscreen")
+    from pathlib import Path
+
+    log_dir = Path(os.environ.get("ASSISTANT_LOG_DIR", str(tmp_path / "logs"))) / "shutdown-child"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    environment = dict(os.environ, ASSISTANT_DATA_DIR=str(tmp_path), QT_QPA_PLATFORM="offscreen",
+                       ASSISTANT_LOG_DIR=str(log_dir))
     result = subprocess.run(
         [sys.executable, "-c", script], env=environment, capture_output=True, text=True,
         timeout=15, check=False,
         creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
     )
-    assert result.returncode == 0, result.stderr
+    report = (f"returncode={result.returncode} (0x{result.returncode & 0xFFFFFFFF:08X})\n"
+              f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}\n")
+    (log_dir / "process-result.txt").write_text(report, encoding="utf-8")
+    for path in log_dir.glob("runtime-*.jsonl"):
+        report += path.read_text("utf-8")
+    for path in log_dir.glob("fault-*.log"):
+        report += path.read_text("utf-8", errors="replace")
+    assert result.returncode == 0, report
     assert not (tmp_path / "desktop.lock").exists()
 
 

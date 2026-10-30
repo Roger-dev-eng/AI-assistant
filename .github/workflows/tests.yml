@@ -11,6 +11,8 @@ jobs:
   core:
     runs-on: windows-latest
     timeout-minutes: 20
+    env:
+      ASSISTANT_LOG_DIR: ${{ runner.temp }}/assistant-diagnostics
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,8 +26,14 @@ jobs:
       - run: python -m playwright install chromium
       - run: python -m ruff check src tests
       - run: python -m pytest -q --junitxml=test-results.xml
+      - name: Collect native Windows crash events
+        if: always()
+        shell: pwsh
+        run: ./scripts/collect_crash_events.ps1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: automated-test-results
-          path: test-results.xml
+          path: |
+            test-results.xml
+            ${{ runner.temp }}/assistant-diagnostics/

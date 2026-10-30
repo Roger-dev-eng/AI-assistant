@@ -2,6 +2,19 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Diagnóstico 0.3.7 — falha nativa intermitente
+
+- Na release 0.3.6, o teste de encerramento retornou `0xC0000005`, sem stdout ou
+  stderr; a execução de testes da branch no mesmo commit passou. A causa permanece
+  sem confirmação.
+- A versão 0.3.7 adiciona etapas persistentes, pilhas de falha nativa e logs do
+  atualizador, sem alterar a sequência de encerramento para tentar corrigir a falha.
+- O Actions coleta esses arquivos e eventos de falha do Windows mesmo quando o job
+  falha. O teste de encerramento inclui o código hexadecimal e os logs no relatório.
+- Novos testes de gravação e privacidade foram preparados para execução no Actions.
+  Nenhuma suíte foi executada localmente; o resultado desta versão está pendente.
+- Consulte [Logs e diagnóstico](DIAGNOSTICS.md) para localizar e interpretar os arquivos.
+
 ## Correção 0.3.6 — encerramento antes de instalar e comunicação assíncrona
 
 - O Actions da 0.3.5 abortou no loop Qt aninhado durante a simulação de falta de

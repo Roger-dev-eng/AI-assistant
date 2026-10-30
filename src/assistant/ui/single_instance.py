@@ -6,6 +6,8 @@ from pathlib import Path
 from PySide6.QtCore import QLockFile, QObject, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
+from assistant.runtime_log import mark
+
 ACTIVATION_TIMEOUT_MS = 2000
 
 
@@ -70,6 +72,7 @@ class SingleInstance(QObject):
 
     @Slot()
     def notify_existing(self):
+        mark("instance.notification.begin")
         if self.owner or not self.notification_finished:
             return
         self.notified = False
@@ -107,12 +110,14 @@ class SingleInstance(QObject):
 
     @Slot()
     def notification_timeout(self):
+        mark("instance.notification.timeout")
         self.finish_notification(False)
 
     def finish_notification(self, delivered):
         if self.notification_finished:
             return
         self.notification_finished = True
+        mark("instance.notification.finish", delivered=bool(delivered))
         self.notified = bool(delivered)
         self.timer.stop()
         self.dispose_client()
@@ -121,6 +126,7 @@ class SingleInstance(QObject):
     def dispose_client(self):
         client, self.client = self.client, None
         if client is not None:
+            mark("instance.client.dispose.begin")
             # Disconnect callbacks before aborting so native error/disconnect signals
             # cannot re-enter cleanup or access a client already scheduled for deletion.
             client.connected.disconnect(self.send_activation)
@@ -129,6 +135,7 @@ class SingleInstance(QObject):
             client.disconnected.disconnect(self.connection_ended)
             client.abort()
             client.deleteLater()
+            mark("instance.client.dispose.end")
 
     def receive(self):
         while self.server.hasPendingConnections():
@@ -157,10 +164,15 @@ class SingleInstance(QObject):
                 activate()
 
     def close(self):
+        mark("instance.cleanup.begin")
         self.notification_finished = True
         self.timer.stop()
         self.dispose_client()
         if self.owner:
+            mark("instance.server.close.begin")
             self.server.close()
+            mark("instance.server.close.end")
             self.lock.unlock()
+            mark("instance.lock.released")
             self.owner = False
+        mark("instance.cleanup.end")
