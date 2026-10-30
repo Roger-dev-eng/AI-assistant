@@ -39,6 +39,7 @@ class FakeStream:
         self.input_stream.send = AsyncMock(side_effect=self.send)
         self.input_stream.close = AsyncMock()
         self.closed = False
+        self.hold_open = False
 
     async def send(self, chunk):
         self.sent.append(json.loads(chunk.value.bytes_)["event"])
@@ -58,6 +59,8 @@ class FakeStream:
                         bytes_=json.dumps({"event": event}).encode()
                     )
                 )
+            if self.hold_open:
+                await asyncio.Event().wait()
 
         return None, iterator()
 
@@ -363,5 +366,96 @@ def test_tool_wait_does_not_block_audio_publisher(tmp_path, monkeypatch):
     try:
         assert provider.run(b"\x01\x00").text == "Chrome aberto."
         assert counts and counts[0] >= 3
+    finally:
+        tracker.close()
+
+
+@pytest.mark.parametrize("completion", [False, True])
+def test_final_content_finishes_without_a_separate_stop_reason(tmp_path, monkeypatch, completion):
+    monkeypatch.setattr("assistant.ai.sonic_provider.END_TURN_DRAIN_SECONDS", 0.02)
+    events = text_events("USER", "Olá", "u") + text_events("ASSISTANT", "Olá!", "a")
+    events += [usage_event()]
+    if completion:
+        events.append({"completionEnd": {}})
+    provider, stream, client, tracker, backend = make_provider(tmp_path, events)
+    stream.hold_open = True
+    try:
+        assert provider.run(b"\x01\x00").text == "Olá!"
+        assert stream.closed and client.closed
+        assert any("sessionEnd" in item for item in stream.sent)
+        assert not backend.mock_calls
+    finally:
+        tracker.close()
+
+
+def test_final_audio_waits_for_trailing_final_transcript_and_usage(tmp_path):
+    audio = b"\x01\x00" * 24
+    events = text_events("USER", "Olá", "u")
+    events += [
+        {"contentStart": {"contentId": "voice", "role": "ASSISTANT", "type": "AUDIO"}},
+        {"audioOutput": {"contentId": "voice", "content": base64.b64encode(audio).decode()}},
+        {"contentEnd": {"contentId": "voice", "stopReason": "END_TURN"}},
+    ]
+    events += text_events("ASSISTANT", "Olá!", "a") + [usage_event()]
+    provider, stream, client, tracker, backend = make_provider(tmp_path, events)
+    try:
+        result = provider.run(b"\x01\x00")
+        assert result.audio == audio and result.text == "Olá!"
+        assert tracker.summary()[1] < 0.25
+    finally:
+        tracker.close()
+
+
+def test_partial_response_does_not_count_as_end_of_turn(tmp_path):
+    events = text_events("USER", "Olá", "u") + text_events("ASSISTANT", "Ainda falando", "a")
+    events[-1]["contentEnd"]["stopReason"] = "PARTIAL_TURN"
+    provider, stream, client, tracker, backend = make_provider(tmp_path, events)
+    try:
+        with pytest.raises(RuntimeError, match="sem uma resposta completa"):
+            provider.run(b"\x01\x00")
+    finally:
+        tracker.close()
+
+
+def test_action_is_reported_before_missing_reply_and_timeout_is_explained(tmp_path):
+    events = text_events("USER", "Abra o Chrome", "u")
+    events += [
+        {"toolUse": {"contentId": "t", "toolUseId": "1", "toolName": "open_app",
+                     "content": '{"app":"chrome"}'}},
+        {"contentEnd": {"contentId": "t", "stopReason": "TOOL_USE"}},
+    ]
+    provider, stream, client, tracker, backend = make_provider(tmp_path, events)
+    phases, actions = [], []
+    provider.on_phase, provider.on_action = phases.append, actions.append
+    try:
+        with pytest.raises(RuntimeError, match="sem uma resposta completa"):
+            provider.run(b"\x01\x00")
+        backend.open_app.assert_called_once()
+        assert actions == ["Abertura de chrome concluída."]
+        assert any("Executando: abrir chrome" in phase for phase in phases)
+        assert "aguardando resposta" in phases[-1]
+        message = provider.failure_message(TimeoutError())
+        assert "tempo limite" in message
+        assert "Abertura de chrome concluída" in message
+        assert "antes de repetir" in message
+    finally:
+        tracker.close()
+
+
+def test_tool_phase_completion_cannot_replay_an_old_acknowledgement(tmp_path):
+    events = text_events("USER", "Abra o Chrome", "u")
+    events += text_events("ASSISTANT", "Vou abrir.", "old")
+    events += [
+        {"toolUse": {"contentId": "t", "toolUseId": "1", "toolName": "open_app",
+                     "content": '{"app":"chrome"}'}},
+        {"contentEnd": {"contentId": "t", "stopReason": "TOOL_USE"}},
+        {"completionEnd": {}},
+    ]
+    events += text_events("ASSISTANT", "Chrome aberto.", "new")
+    events.append({"completionEnd": {}})
+    provider, stream, client, tracker, backend = make_provider(tmp_path, events)
+    try:
+        assert provider.run(b"\x01\x00").text.endswith("Chrome aberto.")
+        backend.open_app.assert_called_once()
     finally:
         tracker.close()

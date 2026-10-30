@@ -20,6 +20,7 @@ from assistant.ui.worker import TaskWorker
 class SonicWorker(TaskWorker):
     phase = Signal(str)
     user_text = Signal(str)
+    action_done = Signal(str)
 
     def __init__(
         self,
@@ -40,7 +41,7 @@ class SonicWorker(TaskWorker):
         self.recording_finished = Event()
 
     def run(self):
-        tracker, memory = None, None
+        tracker, memory, provider = None, None, None
         try:
             if not self.settings.cloud_enabled:
                 raise RuntimeError("Marque Permitir Bedrock (AWS) antes de usar Nova 2 Sonic.")
@@ -66,7 +67,7 @@ class SonicWorker(TaskWorker):
                     silence_seconds=self.settings.silence_seconds,
                 )
             check_cancelled(self.cancelled)
-            self.phase.emit("Microfone desligado · enviando comando ao Nova 2 Sonic (AWS)…")
+            self.phase.emit("Preparando conexão com o Nova 2 Sonic · microfone desligado.")
             import numpy as np
 
             pcm = (np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes()
@@ -90,6 +91,8 @@ class SonicWorker(TaskWorker):
                     self.cancelled,
                     on_transcript=self.user_text.emit,
                     history=memory.messages() if memory else (),
+                    on_phase=self.phase.emit,
+                    on_action=self.action_done.emit,
                 )
                 response = provider.run(pcm)
             check_cancelled(self.cancelled)
@@ -107,9 +110,16 @@ class SonicWorker(TaskWorker):
                     wav.writeframes(response.audio)
                 play_wav(output.getvalue(), self.cancelled)
         except InterruptedError:
-            self.result.emit("Interação de voz interrompida.")
+            report = provider.action_report() if isinstance(provider, SonicProvider) else ""
+            self.result.emit("Interação de voz interrompida. " + report)
         except Exception as exc:
-            self.failed.emit(str(exc))
+            if isinstance(provider, SonicProvider):
+                message = provider.failure_message(exc)
+            elif isinstance(exc, TimeoutError):
+                message = "O tempo limite da interação de voz foi atingido."
+            else:
+                message = str(exc).strip() or f"Falha de voz ({type(exc).__name__})."
+            self.failed.emit(message)
         finally:
             if memory is not None:
                 memory.close()

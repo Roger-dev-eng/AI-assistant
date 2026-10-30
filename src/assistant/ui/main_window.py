@@ -359,6 +359,7 @@ class MainWindow(QMainWindow):
         self.worker.failed.connect(self.show_error)
         self.worker.phase.connect(self.audio_phase)
         self.worker.user_text.connect(self.sonic_transcript)
+        self.worker.action_done.connect(self.sonic_action)
         self.worker.confirmation_requested.connect(self.ask_confirmation)
         self.worker.usage_updated.connect(self.update_usage)
         self.worker.finished.connect(self.task_finished)
@@ -372,6 +373,10 @@ class MainWindow(QMainWindow):
             return
         self.restore_window()
         self.append_message("Você (voz enviada à AWS)", text)
+
+    @Slot(str)
+    def sonic_action(self, text):
+        self.append_message("Ação", text)
 
     @Slot()
     def record_command(self):

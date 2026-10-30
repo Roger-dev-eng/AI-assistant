@@ -48,6 +48,18 @@ retoma sozinha após a resposta. Ações sensíveis continuam exigindo confirma�
 No modo Sonic, comandos comuns podem executar sem uma tela de revisão da
 transcrição. **Parar** cancela captura, transmissão e reprodução pendentes.
 
+A interface diferencia conexão, envio da gravação, execução da ferramenta e
+espera da resposta. Assim que uma ferramenta conclui, seu resultado é exibido
+na conversa, mesmo que a resposta falada ainda esteja pendente. Em caso de erro,
+a mensagem informa a etapa, o motivo e os resultados já confirmados. Uma ação
+em andamento sem resultado confirmado é identificada como incerta; confira o
+Windows antes de repetir o comando.
+
+A resposta pode terminar por `completionEnd` ou por `END_TURN` em conteúdo final
+do assistente. Nesse segundo caso, o app drena brevemente os eventos finais de
+texto e consumo antes de encerrar o stream. Conteúdo parcial e conclusão da fase
+de ferramenta não substituem a resposta posterior ao resultado da ferramenta.
+
 Esta versão captura a frase, envia em ritmo de áudio e só reproduz a resposta
 após concluir a interação. Enquanto aguarda o Sonic, mantém o conteúdo de áudio
 aberto e envia silêncio digital, sem reabrir o microfone. Confirmações e ferramentas

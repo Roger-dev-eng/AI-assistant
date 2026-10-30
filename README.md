@@ -208,6 +208,8 @@ Abra o Chrome e depois pesquise Python no YouTube
 
 Use **Simular ações** para visualizar as ferramentas propostas sem executar seus efeitos. **Interromper** ou **Esc** cancela a tarefa, aguardando a liberação da operação atual.
 
+No modo Sonic, a interface distingue o envio da gravação, a execução da ação e a espera da resposta. O resultado local aparece assim que a ferramenta conclui. Se ocorrer uma falha depois disso, a mensagem informa o motivo e as ações já confirmadas, para evitar repetir uma operação que já aconteceu. A resposta falada do Sonic é reproduzida automaticamente, independentemente da opção de leitura pelo Piper.
+
 Fechar a janela mantém o aplicativo na bandeja quando esse recurso está disponível. Para encerrar, use **Aplicativo → Sair** ou **Sair** no menu da bandeja.
 
 Para usar pelo terminal:

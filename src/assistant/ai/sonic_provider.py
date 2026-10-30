@@ -14,6 +14,23 @@ from assistant.tools.windows import automation_context
 
 AUDIO_CHUNK_BYTES = 1024
 AUDIO_CHUNK_SECONDS = 0.032
+END_TURN_DRAIN_SECONDS = 0.75
+
+
+def action_summary(action, simulated=False):
+    args = action.arguments
+    messages = {
+        "open_app": f"Abertura de {args.get('app', 'aplicativo')} concluída.",
+        "close_app": f"Solicitação de fechamento de {args.get('app', 'aplicativo')} enviada.",
+        "set_volume": f"Volume ajustado para {args.get('percent', '')}%.",
+        "search_web": "Busca aberta no navegador.",
+        "read_search_results": "Consulta de resultados concluída.",
+        "open_search_result": "Resultado selecionado aberto.",
+        "open_site": "Site aberto no navegador.",
+        "active_app": "Consulta da janela ativa concluída.",
+    }
+    text = messages.get(action.name, f"Ferramenta {action.name} concluída.")
+    return f"Simulação: {text}" if simulated else text
 
 
 @dataclass(frozen=True)
@@ -70,6 +87,8 @@ class SonicProvider:
         on_transcript=lambda _: None,
         client_factory=create_client,
         history=(),
+        on_phase=lambda _: None,
+        on_action=lambda _: None,
     ):
         self.settings, self.tracker, self.executor = settings, tracker, executor
         self.cancelled, self.on_transcript = cancelled, on_transcript
@@ -77,6 +96,40 @@ class SonicProvider:
         self.counts = {"input_text": 0, "output_text": 0, "input_speech": 0, "output_speech": 0}
         self.record = None
         self.opened = False
+        self.on_phase, self.on_action = on_phase, on_action
+        self.stage = "Preparando a conexão"
+        self.actions_completed = []
+        self.action_pending = None
+        self.tools_requested = False
+
+    def phase(self, text):
+        self.stage = text
+        self.on_phase(text + " · microfone desligado.")
+
+    def action_report(self):
+        if self.actions_completed:
+            return "Resultados já confirmados: " + " ".join(self.actions_completed)
+        if self.tools_requested:
+            return "Não há confirmação de conclusão das ferramentas solicitadas."
+        return "Nenhuma ferramenta local foi solicitada."
+
+    def failure_message(self, error):
+        if isinstance(error, TimeoutError):
+            reason = (
+                f"O tempo limite de {self.settings.sonic_timeout_seconds}s foi atingido "
+                "antes de concluir a resposta do Nova 2 Sonic."
+            )
+        else:
+            reason = str(error).strip() or f"Falha de voz ({type(error).__name__})."
+        message = f"{reason}\nEtapa: {self.stage}.\n{self.action_report()}"
+        if self.action_pending:
+            message += (
+                f"\nA ferramenta {self.action_pending} estava em andamento; "
+                "não foi possível confirmar seu resultado."
+            )
+        if self.tools_requested:
+            message += "\nConfira o resultado antes de repetir o comando."
+        return message
 
     def run(self, pcm):
         if not self.settings.cloud_enabled:
@@ -107,6 +160,7 @@ class SonicProvider:
         return result
 
     async def _run(self, pcm):
+        self.phase("Conectando ao Nova 2 Sonic")
         async with asyncio.timeout(self.settings.sonic_timeout_seconds):
             async with await self.client_factory(self.settings) as client:
                 from aws_sdk_bedrock_runtime.models import (
@@ -238,6 +292,8 @@ class SonicProvider:
             # Sonic expects a live input container until the interaction ends.
             # Keep sending synthetic silence after the clip; never reopen the mic.
             offset = 0
+            self.phase("Enviando gravação ao Nova 2 Sonic")
+            upload_finished = False
             while not complete.is_set():
                 chunk = pcm[offset : offset + AUDIO_CHUNK_BYTES]
                 offset += len(chunk)
@@ -250,6 +306,10 @@ class SonicProvider:
                         "content": base64.b64encode(chunk).decode("ascii"),
                     },
                 )
+                if offset >= len(pcm) and not upload_finished:
+                    upload_finished = True
+                    if not self.action_pending:
+                        self.phase("Aguardando resposta do Nova 2 Sonic")
                 await asyncio.sleep(AUDIO_CHUNK_SECONDS)
 
         def execute_tool(action):
@@ -266,11 +326,51 @@ class SonicProvider:
 
             blocks, tool_calls, seen, spoken = {}, {}, set(), bytearray()
             transcript, answer = [], []
-            async for item in output:
+            turn_ended = False
+            generation = 0
+            reply_after_tool = False
+
+            def final_content_ready():
+                return bool(turn_ended and (not self.tools_requested or reply_after_tool)
+                            and not blocks and not tool_calls and transcript
+                            and (answer or spoken))
+
+            def finish():
+                if (tool_calls or blocks or not transcript or (not answer and not spoken)
+                        or (self.tools_requested and not reply_after_tool)):
+                    raise RuntimeError("A sessão Sonic terminou incompleta.")
+                complete.set()
+                self.phase("Resposta do Nova 2 Sonic recebida")
+                return SonicResult(" ".join(transcript), " ".join(answer), bytes(spoken))
+
+            iterator = aiter(output)
+            while True:
+                # END_TURN on final assistant content is also a protocol boundary.
+                # Drain trailing text/usage/tool events, without waiting forever for
+                # a separate completionEnd that some streams only emit on closing.
+                pending = asyncio.ensure_future(anext(iterator))
+                try:
+                    done, _ = await asyncio.wait(
+                        [pending], timeout=END_TURN_DRAIN_SECONDS if final_content_ready() else None
+                    )
+                    if not done:
+                        return finish()
+                    item = pending.result()
+                except StopAsyncIteration:
+                    if final_content_ready():
+                        return finish()
+                    raise RuntimeError("O fluxo Sonic foi encerrado sem uma resposta completa.") from None
+                finally:
+                    if not pending.done():
+                        pending.cancel()
+                        await asyncio.gather(pending, return_exceptions=True)
                 check_cancelled(self.cancelled)
                 if not isinstance(item, InvokeModelWithBidirectionalStreamOutputChunk):
-                    message = getattr(getattr(item, "value", None), "message", type(item).__name__)
+                    message = (getattr(getattr(item, "value", None), "message", None)
+                               or type(item).__name__)
                     raise RuntimeError(f"Sonic: {message}")
+                if not item.value.bytes_:
+                    continue
                 event = json.loads(item.value.bytes_.decode("utf-8")).get("event", {})
                 if "usageEvent" in event:
                     self.update_usage(event["usageEvent"])
@@ -281,6 +381,8 @@ class SonicProvider:
                     blocks[start["contentId"]] = {
                         "role": start.get("role"),
                         "stage": extra.get("generationStage"),
+                        "type": start.get("type", "TEXT"),
+                        "generation": generation,
                         "text": "",
                     }
                 if "textOutput" in event:
@@ -296,11 +398,14 @@ class SonicProvider:
                     if len(spoken) > 24000 * 2 * 60:
                         raise ValueError("Sonic excedeu o limite de resposta falada.")
                 if "toolUse" in event:
+                    turn_ended = False
+                    self.tools_requested = True
                     call = event["toolUse"]
                     identifier = call["toolUseId"]
                     if (
                         identifier in seen
-                        or identifier in tool_calls
+                        or call["contentId"] in tool_calls
+                        or any(identifier == pending_id for pending_id, _ in tool_calls.values())
                         or len(seen) + len(tool_calls) >= 10
                     ):
                         raise ValueError("Chamada de ferramenta duplicada ou limite excedido.")
@@ -314,38 +419,78 @@ class SonicProvider:
                 if "contentEnd" in event:
                     end = event["contentEnd"]
                     block = blocks.pop(end.get("contentId"), None)
+                    if (block and block["role"] == "ASSISTANT"
+                            and end.get("stopReason") == "INTERRUPTED"):
+                        raise RuntimeError("A resposta falada do Sonic foi interrompida antes de terminar.")
                     if block and block["stage"] == "FINAL" and block["text"].strip():
                         if block["role"] == "USER":
                             transcript.append(block["text"])
                             self.on_transcript(block["text"])
                         elif block["role"] == "ASSISTANT":
                             answer.append(block["text"])
+                    if (block and block["role"] == "ASSISTANT"
+                            and block["generation"] == generation
+                            and ((block["type"] == "TEXT" and block["stage"] == "FINAL"
+                                  and block["text"].strip())
+                                 or (block["type"] == "AUDIO" and spoken))):
+                        reply_after_tool = True
+                    if (block and block["role"] == "ASSISTANT"
+                            and block["generation"] == generation
+                            and end.get("stopReason") == "END_TURN"
+                            and ((block["type"] == "TEXT" and block["stage"] == "FINAL"
+                                  and block["text"].strip())
+                                 or (block["type"] == "AUDIO" and spoken))):
+                        turn_ended = True
                     if end.get("contentId") in tool_calls:
                         identifier, action = tool_calls.pop(end["contentId"])
                         if end.get("stopReason") != "TOOL_USE" or not transcript:
                             raise ValueError("Ferramenta sem transcrição final ou término válido.")
                         seen.add(identifier)
+                        turn_ended = False
+                        self.action_pending = action.name
+                        labels = {
+                            "open_app": f"abrir {action.arguments.get('app', 'aplicativo')}",
+                            "close_app": "solicitar fechamento do aplicativo",
+                            "open_site": "abrir site", "search_web": "abrir busca",
+                            "read_search_results": "consultar resultados",
+                            "open_search_result": "abrir resultado selecionado",
+                            "set_volume": "ajustar volume", "active_app": "consultar janela ativa",
+                        }
+                        self.phase("Executando: " + labels.get(action.name, action.name))
+                        tool_failed = False
                         try:
                             result = await asyncio.to_thread(execute_tool, action)
                         except InterruptedError:
                             raise
                         except Exception as exc:
-                            result = f"Tool failed: {exc}"
+                            tool_failed = True
+                            result = f"Tool failed: {str(exc).strip() or type(exc).__name__}"
+                        else:
+                            if result != "Action denied by user.":
+                                summary = action_summary(action, self.executor.dry_run)
+                                self.actions_completed.append(summary)
+                                self.on_action(summary)
+                        self.action_pending = None
                         if result == "Action denied by user.":
                             complete.set()
                             return SonicResult(
                                 " ".join(transcript), "Ação cancelada pelo usuário.", b""
                             )
                         await text_block("TOOL", json.dumps({"result": result}), identifier)
-                if "completionEnd" in event and event["completionEnd"].get("stopReason") in {
-                    "END_TURN",
-                    "end_turn",
-                }:
-                    if tool_calls or not transcript or (not answer and not spoken):
-                        raise RuntimeError("A sessão Sonic terminou incompleta.")
-                    complete.set()
-                    return SonicResult(" ".join(transcript), " ".join(answer), bytes(spoken))
-            raise RuntimeError("O fluxo Sonic foi encerrado sem uma resposta completa.")
+                        generation += 1
+                        reply_after_tool = False
+                        self.phase(
+                            ("A ferramenta falhou; " if tool_failed else "Ação processada; ")
+                            + "aguardando resposta do Nova 2 Sonic"
+                        )
+                if "completionEnd" in event:
+                    reason = event["completionEnd"].get("stopReason")
+                    if reason in {None, ""} and self.tools_requested and not reply_after_tool:
+                        continue  # Completion of the tool-request phase, not its final reply.
+                    if reason in {"END_TURN", "end_turn", None, ""}:
+                        return finish()
+                    if reason not in {"TOOL_USE", "PARTIAL_TURN"}:
+                        raise RuntimeError(f"O Sonic encerrou a geração com o motivo: {reason}.")
 
         async def watch_cancel():
             while not complete.is_set():

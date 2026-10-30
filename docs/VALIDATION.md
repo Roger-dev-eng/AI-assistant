@@ -2,6 +2,21 @@
 
 Validado em 29/10/2026, Windows x64 e Python 3.12.14.
 
+## Correção 0.3.3 — fim da resposta e estados da interação
+
+- Aceita conclusão geral ou término explícito de conteúdo final `END_TURN`, com
+  drenagem de eventos finais. Não usa ausência de áudio como prova de conclusão.
+- Conteúdo parcial, ferramentas pendentes e confirmações anteriores ao resultado
+  de uma ferramenta não contam como resposta final posterior à execução.
+- A interface mostra conexão, envio, execução e espera; resultados locais são
+  apresentados imediatamente. Falhas e cancelamento informam resultados já
+  confirmados, sem repetir ações automaticamente.
+- Erros vazios recebem mensagem com tipo/tempo limite e etapa. Ferramentas ainda
+  em andamento são descritas como sem confirmação de resultado.
+- Novos testes cobrem esses limites e reprodução automática do Sonic com a
+  leitura local desabilitada. Serão executados no GitHub Actions, conforme a
+  preferência do usuário; não houve teste pago de voz nesta alteração.
+
 ## Correção 0.3.2 — auxiliar nativo de atualização
 
 - O Windows PowerShell usado pelo atualizador retornou política efetiva
