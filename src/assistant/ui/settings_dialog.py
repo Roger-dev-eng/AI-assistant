@@ -88,6 +88,9 @@ class SettingsDialog(QDialog):
         self.database_button = QPushButton("Ver banco de dados…")
         self.database_button.clicked.connect(self.open_database)
         general.addRow("Histórico, navegação e consumo", self.database_button)
+        applications = QPushButton("Cadastrar aplicativos…")
+        applications.clicked.connect(self.open_applications)
+        general.addRow("Abertura direta por nome ou apelido", applications)
         navigation_notice = QLabel(
             "A correlação usa uma janela separada do Chrome/Edge controlada pelo assistente. "
             "Ela fecha ao sair do assistente. Comandos conhecidos continuam locais; "
@@ -150,6 +153,19 @@ class SettingsDialog(QDialog):
         ]:
             field(sonic, key, label)
         field(sonic, "sonic_timeout_seconds", "Tempo máximo da sessão (segundos)", 30, 180)
+        automation = page("Controle e tarefas")
+        field(automation, "desktop_automation_enabled", "Permitir controles de interface e WhatsApp Web")
+        field(automation, "automation_max_steps", "Máximo de etapas da automação", 5, 30)
+        field(automation, "automation_input_bytes", "Limite de contexto da automação (bytes)", 24000, 128000)
+        field(automation, "research_enabled", "Permitir tarefas de pesquisa e documento Word")
+        automation_notice = QLabel(
+            "Nomes dos controles inspecionados podem ser enviados à IA. Cliques e preenchimentos "
+            "exigem confirmação. WhatsApp Web exige login por QR e nova confirmação antes de enviar. "
+            "A pesquisa usa AWS com os limites de custo existentes e continua após a resposta de voz. "
+            "Acompanhe/cancele em Ver banco de dados → Tarefas. Ao sair, tarefas pendentes são canceladas."
+        )
+        automation_notice.setWordWrap(True)
+        automation.addRow(automation_notice)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
@@ -165,6 +181,11 @@ class SettingsDialog(QDialog):
         )
         if path:
             control.setText(path)
+
+    def open_applications(self):
+        from assistant.ui.applications_dialog import ApplicationsDialog
+
+        ApplicationsDialog(data_path(), self).exec()
 
     def open_database(self):
         path = getattr(self.parent(), "database_path", data_path())

@@ -20,6 +20,8 @@ LABELS = {"created": "Horário UTC", "updated": "Atualizado UTC", "command_text"
           "site": "Site", "url": "Endereço", "query": "Pesquisa", "model": "Modelo AWS",
           "input_tokens": "Tokens de entrada", "output_tokens": "Tokens de saída", "cost": "US$ estimado",
           "user_text": "Você", "assistant_text": "Assistente"}
+LABELS.update({"id": "Tarefa", "title": "Título", "output_path": "Arquivo gerado",
+               "message": "Detalhes", "sources": "Fontes e trechos", "draft_id": "Referência do envio"})
 
 
 class DatabaseDialog(QDialog):
@@ -52,6 +54,9 @@ class DatabaseDialog(QDialog):
         clear = QPushButton("Apagar comandos e contexto de navegação…")
         clear.clicked.connect(self.clear_activity)
         row.addWidget(clear)
+        cancel_task = QPushButton("Cancelar tarefa selecionada")
+        cancel_task.clicked.connect(self.cancel_task)
+        row.addWidget(cancel_task)
         row.addStretch()
         close = QPushButton("Fechar")
         close.clicked.connect(self.accept)
@@ -105,4 +110,19 @@ class DatabaseDialog(QDialog):
         except Exception as exc:
             QMessageBox.warning(self, "Não foi possível apagar", str(exc))
             return
+        self.refresh()
+
+    def cancel_task(self):
+        table = self.tables.get("Tarefas")
+        if table is None or self.tabs.currentWidget() is not table or table.currentRow() < 0:
+            QMessageBox.information(self, "Escolha uma tarefa", "Selecione uma linha na aba Tarefas.")
+            return
+        try:
+            from assistant.core.research import research_manager
+
+            research_manager(self.path).cancel(table.item(table.currentRow(), 0).text())
+            QMessageBox.information(self, "Cancelamento solicitado", "A tarefa vai parar na próxima etapa segura. "
+                                    "Uma chamada AWS já iniciada pode ter consumo. Arquivos prontos são preservados.")
+        except Exception as exc:
+            QMessageBox.warning(self, "Tarefa indisponível", str(exc))
         self.refresh()

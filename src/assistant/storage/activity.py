@@ -7,7 +7,7 @@ from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from assistant.core.intent_router import normalize
+from assistant.core.intent_router import Action, normalize
 
 
 def private_text(value):
@@ -56,6 +56,12 @@ class ActivityStore:
                                "(SELECT id FROM command_history ORDER BY id DESC LIMIT 1000)")
 
     def record(self, task_id, command, action, status, result):
+        if ("whatsapp" in command.lower() or action.name.startswith("whatsapp_")
+                or action.arguments.get("app") == "whatsapp"):
+            command = "Comando do WhatsApp (conteúdo omitido)"
+        if action.name == "whatsapp_prepare_message":
+            action = Action(action.name, {**action.arguments, "text": "[conteúdo omitido]"})
+            result = "Rascunho preparado, sem envio" if status == "completed" else result
         with closing(self.connect()) as connection, connection:
             connection.execute(
                 "INSERT INTO command_history(created,task_id,command_text,normalized,tool,arguments,"
@@ -104,6 +110,10 @@ def database_snapshot(path):
         "Consumo": "SELECT created,model,input_tokens,output_tokens,cost,status "
                    "FROM usage ORDER BY id DESC LIMIT 200",
         "Conversas": "SELECT created,user_text,assistant_text FROM conversation ORDER BY id DESC LIMIT 200",
+        "Tarefas": "SELECT id,updated,title,status,output_path,message,sources "
+                   "FROM research_tasks ORDER BY created DESC LIMIT 200",
+        "Envios": "SELECT created,draft_id,status FROM message_attempts ORDER BY created DESC LIMIT 200",
+        "Aplicativos": "SELECT name,executable,aliases FROM applications ORDER BY name LIMIT 200",
     }
     if not Path(path).is_file():
         return {name: ([], []) for name in views}

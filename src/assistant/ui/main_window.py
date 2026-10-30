@@ -23,6 +23,7 @@ from assistant.ai.model_selector import select_model
 from assistant.cloud.usage_tracker import UsageTracker
 from assistant.runtime_log import mark
 from assistant.storage.memory import ConversationMemory
+from assistant.storage.tasks import recent_tasks
 from assistant.ui.audio_worker import AudioWorker
 from assistant.ui.settings_dialog import SettingsDialog
 from assistant.ui.sonic_worker import SonicWorker
@@ -255,6 +256,29 @@ class MainWindow(QMainWindow):
         finally:
             tracker.close()
         self.mode_changed(self.mode_tabs.currentIndex())
+        self.task_notifications = {row["id"]: row["status"] for row in recent_tasks(database_path)}
+        self.task_timer = QTimer(self)
+        self.task_timer.timeout.connect(self.poll_research_tasks)
+        self.task_timer.start(2000)
+
+    @Slot()
+    def poll_research_tasks(self):
+        if self.exiting:
+            return
+        try:
+            rows = recent_tasks(self.database_path)
+        except Exception:
+            return
+        for row in rows:
+            previous = self.task_notifications.get(row["id"])
+            self.task_notifications[row["id"]] = row["status"]
+            if row["status"] == previous or row["status"] not in {"completed", "failed", "cancelled"}:
+                continue
+            text = (f"{row['title']}\n{row['output_path']}\n{row['message']}"
+                    if row["status"] == "completed" else f"{row['title']}\n{row['message']}")
+            self.append_message("Pesquisa concluída" if row["status"] == "completed" else "Estado da pesquisa", text)
+            if self.tray is not None:
+                self.tray.showMessage("Pesquisa do assistente", text)
 
     @Slot(int)
     def mode_changed(self, index):

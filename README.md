@@ -41,6 +41,10 @@ O projeto também busca manter controle sobre as ações executadas, o envio de 
 
 ## Funcionalidades
 
+- Cadastro de aplicativos e nomes alternativos no SQLite para abertura direta por voz, sem analisar a tela. Vetores locais de palavras auxiliam sugestões; nomes e apelidos exatos definem a execução.
+- Controle de campos e botões acessíveis do Word, Bloco de Notas e Calculadora, com confirmação e nova inspeção após alterações.
+- Pesquisa de fontes públicas e geração de documentos Word na Área de Trabalho, com tarefas acompanhadas no banco de dados.
+- WhatsApp Web em janela própria: preparação de rascunhos e envio confirmado, com proteção contra repetição automática.
 - Envio de comandos em português e inglês pela interface desktop ou pelo terminal.
 - Abertura de aplicativos, consulta da janela ativa e ajuste de volume.
 - Execução de sequências de comandos reconhecidos localmente.
@@ -55,6 +59,10 @@ O projeto também busca manter controle sobre as ações executadas, o envio de 
 - Registro local de consumo estimado e limites de uso da AWS.
 - Modo de simulação de ações e interrupção de tarefas.
 - Instalador Windows e verificação de atualizações pelo próprio aplicativo.
+
+Na versão **0.3.13**, configure esses recursos em **Configurações > Controle e tarefas**. Exemplo: “Pesquise energia solar e gere um relatório de uma página na área de trabalho”. A pesquisa continua em segundo plano e avisa quando o arquivo estiver pronto. Acompanhe ou cancele em **Ver banco de dados > Tarefas**. A paginação é aproximada.
+
+Para mensagens, diga “Abra o WhatsApp”, conecte pelo QR code e informe o nome exato do contato. O assistente prepara o texto e pede confirmação antes de enviar. O suporte inicial é ao **WhatsApp Web**, e o controle de interfaces está limitado aos aplicativos e controles suportados. Consulte [configuração, privacidade e limitações](docs/AUTOMATION.md).
 
 ## Estrutura do projeto
 

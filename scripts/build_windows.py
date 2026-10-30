@@ -68,6 +68,8 @@ def main():
         "sounddevice",
         "_sounddevice_data",
         "vosk",
+        "docx",
+        "lxml",
         "pywinauto",
         "pycaw",
         "comtypes",
@@ -83,6 +85,8 @@ def main():
         args += ["--collect-all", package]
     for distribution in (
         "assistant-desktop",
+        "python-docx",
+        "lxml",
         "piper-tts",
         "faster-whisper",
         "onnxruntime",

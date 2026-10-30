@@ -70,8 +70,10 @@ def run_desktop(settings, dry_run=False, force_offline=False, start_in_tray=Fals
         mark("qt.event_loop.end", code=code)
         return code
     finally:
+        from assistant.core.research import shutdown_research
         from assistant.tools.navigation import shutdown_navigation
 
+        shutdown_research()
         shutdown_navigation()
         mark("instance.close.begin")
         instance.close()

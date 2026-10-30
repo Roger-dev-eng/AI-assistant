@@ -25,6 +25,8 @@ class NavigationSession:
         self.pages = {}
         self.run_id = uuid4().hex
         self.selected = {}
+        self.whatsapp_page = None
+        self.whatsapp = None
 
     def ensure_browser(self):
         if self.browser is not None and self.browser.is_connected():
@@ -154,6 +156,45 @@ class NavigationSession:
 
     def open_link(self, url, saved, cancelled):
         return self.navigate(url, saved, cancelled, reuse_source=True)
+
+    def whatsapp_window(self, cancelled):
+        self.ensure_browser()
+        if cancelled.is_set():
+            raise InterruptedError("WhatsApp interrompido.")
+        page = self.whatsapp_page
+        try:
+            valid = page is not None and not page.is_closed() and urlsplit(page.evaluate("() => location.href")).hostname == "web.whatsapp.com"
+        except Exception:
+            valid = False
+        if not valid:
+            page = self.context.new_page()
+            page.goto("https://web.whatsapp.com", wait_until="domcontentloaded", timeout=15000)
+            self.pages[uuid4().hex] = page
+            self.whatsapp_page = page
+        page.bring_to_front()
+        if urlsplit(page.url).hostname != "web.whatsapp.com":
+            raise RuntimeError("A janela do WhatsApp mudou de endereço.")
+        return page
+
+    def messaging(self):
+        if self.whatsapp is None:
+            from assistant.tools.messaging import WhatsAppTools
+
+            self.whatsapp = WhatsAppTools(self.whatsapp_window)
+        return self.whatsapp
+
+    def open_whatsapp(self, cancelled):
+        self.whatsapp_window(cancelled)
+        return "WhatsApp Web aberto na janela do assistente. Conecte pelo QR code se solicitado."
+
+    def prepare_message(self, contact, text, cancelled):
+        return self.messaging().prepare(contact, text, cancelled)
+
+    def describe_message(self, identifier, cancelled):
+        return self.messaging().describe(identifier, cancelled)
+
+    def send_message(self, identifier, store, cancelled):
+        return self.messaging().send(identifier, store, cancelled)
 
     def close(self):
         try:

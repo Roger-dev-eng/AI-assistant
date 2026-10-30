@@ -20,6 +20,7 @@ def write_diagnostics(path, settings):
         "piper",
         "sounddevice",
         "vosk",
+        "docx",
         "pywinauto",
         "pycaw.pycaw",
         "aws_sdk_bedrock_runtime",
@@ -36,6 +37,12 @@ def write_diagnostics(path, settings):
         from assistant.updates import updater_executable
 
         checks["native_updater"] = "ok" if updater_executable().is_file() else "missing"
+        try:
+            from docx import Document
+
+            checks["docx_template"] = "ok" if len(Document().sections) else "missing"
+        except Exception as exc:
+            checks["docx_template"] = str(exc)
         try:
             from assistant.audio.wake_trigger import make_recognizer
 

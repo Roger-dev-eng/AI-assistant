@@ -6,7 +6,7 @@ from assistant.tools.registry import validate
 
 class Orchestrator:
     def __init__(self, executor, provider, max_rounds=5, memory=None):
-        self.router = IntentRouter()
+        self.router = IntentRouter(executor.resolve_application)
         self.executor = executor
         self.provider = provider
         self.max_rounds = max_rounds
@@ -44,6 +44,7 @@ class Orchestrator:
         messages = self.memory.messages() if self.memory is not None else []
         messages.append({"role": "user", "content": [{"text": text}]})
         for _ in range(self.max_rounds):
+            self.compact_observations(messages)
             if self.executor.cancelled.is_set():
                 raise InterruptedError("Task interrupted.")
             message = self.provider.converse(messages)
@@ -85,3 +86,15 @@ class Orchestrator:
                     return "Ação cancelada pelo usuário / Action cancelled by user."
             messages.append({"role": "user", "content": results})
         return "Limite de etapas atingido / Step limit reached."
+
+    @staticmethod
+    def compact_observations(messages):
+        inspections = [block["toolUse"]["toolUseId"] for message in messages
+                       for block in message["content"]
+                       if block.get("toolUse", {}).get("name") == "inspect_app"]
+        obsolete = set(inspections[:-1])
+        for message in messages:
+            for block in message["content"]:
+                result = block.get("toolResult")
+                if result and result["toolUseId"] in obsolete:
+                    result["content"] = [{"text": "Inspeção anterior substituída. Não reutilize esses IDs."}]

@@ -2,6 +2,16 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Versão 0.3.13 — controle de interface e pesquisa
+
+- Cadastro local de executáveis e apelidos, consulta e sugestões lexicais. Testes verificam persistência, ambiguidade, preservação ao limpar histórico, abertura sem modelo/inspeção e rejeição de executáveis ausentes ou scripts. Processos são simulados; nenhum executável de teste é iniciado.
+- Testes adicionados para identidade de controles, confirmação negada, texto literal, bloqueio de repetição de envio, mudança de conversa/página e preservação de rascunhos. WhatsApp usa HTML sintético, sem contas ou mensagens reais.
+- Testes de pesquisa cobrem falhas de fontes, cancelamento, contexto independente, orçamento compartilhado, conexão ao IP público validado e geração de DOCX em diretório temporário sem sobrescrita.
+- A distribuição coleta python-docx/lxml; o diagnóstico congelado verifica a disponibilidade do template DOCX em memória.
+- Verificações locais limitadas à sintaxe Python, análise estática e integridade do diff. A suíte será executada no Actions; seu resultado não foi aguardado.
+- Não foram executados testes reais com Word/WhatsApp, chamadas AWS, captura de microfone ou instalação local. Compatibilidade com os controles dos aplicativos e layout atual do WhatsApp precisa de validação no uso real.
+- O teste de encerramento anteriormente excluído pelo usuário continua excluído do Actions.
+
 ## Versão 0.3.12 — histórico e navegação correlacionada
 
 - Novas tabelas `command_history` e `navigation_context` no mesmo SQLite, sem

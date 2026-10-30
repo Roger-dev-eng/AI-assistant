@@ -124,3 +124,11 @@ o áudio do comando, instruções, contexto opcional e resultados das ferramenta
 - [SDK Python bidirecional](https://docs.aws.amazon.com/sdk-for-python/v1/guide/bedrock-bidirectional-streaming.html)
 - [Eventos de entrada](https://docs.aws.amazon.com/nova/latest/nova2-userguide/sonic-input-events.html)
 - [API e permissão IAM](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModelWithBidirectionalStream.html)
+
+## Controle e tarefas a partir da 0.3.13
+
+O Sonic pode solicitar inspeção e ações nos controles suportados, preparar mensagens e iniciar pesquisas. Cliques, preenchimentos e envio de mensagem requerem confirmação na interface. O limite de etapas fica em Configurações > Controle e tarefas.
+
+Uma pesquisa iniciada é uma tarefa independente: a resposta de voz confirma apenas que entrou na fila. O modelo textual Bedrock redige usando trechos de fontes públicas; a conclusão ou falha aparece depois na conversa e no banco, em Tarefas. Não exige manter a sessão de áudio aberta. Custos usam o orçamento configurado. Veja [controle e tarefas](AUTOMATION.md).
+
+O fluxo de captura e reprodução de áudio não foi alterado nesta versão.

@@ -26,6 +26,9 @@ APPS = {
     "bloco de notas": "notepad",
     "calculadora": "calculator",
     "calculator": "calculator",
+    "word": "word",
+    "microsoft word": "word",
+    "whatsapp": "whatsapp",
 }
 SITES = {
     "google": "https://www.google.com",
@@ -37,10 +40,24 @@ SITES = {
 class IntentRouter:
     """Only full, unambiguous matches run locally; other requests go to the planner."""
 
+    def __init__(self, application_resolver=None):
+        self.application_resolver = application_resolver
+
     def route(self, text: str, current_site=None) -> list[Action] | None:
         value = normalize(text)
         if not value:
             return None
+        # Research is one job, not a sequence constrained by the voice session.
+        report = re.fullmatch(
+            r"(?:pesquise|pesquisa|pesquisar)\s+(?:sobre\s+)?(.+?)\s+(?:e\s+)?"
+            r"(?:gere|gera|gerar|crie|cria|criar)\s+(?:um\s+)?(?:relatorio|documento)"
+            r"(?:\s+(?:word|docx))?(?:\s+de\s+(uma|duas|tres|[1-3])\s+paginas?)?"
+            r"(?:\s+(?:no word|em word))?(?:\s+na area de trabalho)?", value,
+        )
+        if report:
+            counts = {"uma": 1, "duas": 2, "tres": 3}
+            pages = counts.get(report[2], int(report[2]) if report[2] and report[2].isdigit() else 1)
+            return [Action("start_research_report", {"topic": report[1], "title": report[1][:120], "pages": pages})]
         # Parse the entire request before executing any part. A failed clause means no local plan.
         parts = re.split(
             r"\s+(?:e depois|and then|depois|then)\s+|"
@@ -59,11 +76,18 @@ class IntentRouter:
         )
         if match:
             target = match[1]
+            registered = self.application_resolver(target) if self.application_resolver else None
+            if registered:
+                return [Action("open_app", {"app": registered})]
             if target in APPS:
                 return [Action("open_app", {"app": APPS[target]})]
             if target in SITES:
                 return [Action("open_site", {"url": SITES[target]})]
         match = re.fullmatch(r"(?:feche|fecha|fechar|close)\s+(?:o |a |the )?(.+)", value)
+        if match and self.application_resolver:
+            registered = self.application_resolver(match[1])
+            if registered:
+                return [Action("close_app", {"app": registered})]
         if match and match[1] in APPS:
             return [Action("close_app", {"app": APPS[match[1]]})]
         # Capture query from original text to preserve accents, case and punctuation.

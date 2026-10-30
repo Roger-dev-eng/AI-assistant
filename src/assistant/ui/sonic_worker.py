@@ -80,6 +80,7 @@ class SonicWorker(TaskWorker):
                     self.backend_factory(), self.confirm, self.dry_run, self.cancelled,
                     activity=(ActivityStore(self.database_path, self.settings.command_history_retention_days)
                               if self.settings.command_history_enabled and not self.dry_run else None),
+                    settings=self.settings, database_path=self.database_path,
                 )
                 executor.begin_task()
                 self.confirmation_deadline = time.monotonic() + self.settings.sonic_timeout_seconds

@@ -6,7 +6,8 @@ from assistant.tools.registry import validate
 
 
 class ActionExecutor:
-    def __init__(self, backend, confirm, dry_run=False, cancelled=None, activity=None):
+    def __init__(self, backend, confirm, dry_run=False, cancelled=None, activity=None,
+                 settings=None, database_path=None):
         self.backend = backend
         self.confirm = confirm
         self.dry_run = dry_run
@@ -14,6 +15,10 @@ class ActionExecutor:
         self.activity = activity if not dry_run else None
         self.command_text = ""
         self.task_id = uuid4().hex
+        self.message_send_attempted = False
+        configure = getattr(type(backend), "configure_runtime", None)
+        if configure is not None and settings is not None:
+            configure(backend, settings, database_path)
         if self.activity is not None:
             bind_activity = getattr(type(backend), "bind_activity", None)
             if bind_activity is not None:
@@ -24,6 +29,7 @@ class ActionExecutor:
 
     def begin_task(self):
         self.task_id = uuid4().hex
+        self.message_send_attempted = False
         reset = getattr(type(self.backend), "reset_task", None)
         if reset is not None:
             reset(self.backend)
@@ -34,6 +40,10 @@ class ActionExecutor:
     def current_search_site(self):
         method = getattr(type(self.backend), "current_search_site", None)
         return method(self.backend) if self.activity is not None and method else None
+
+    def resolve_application(self, name):
+        method = getattr(type(self.backend), "resolve_application", None)
+        return method(self.backend, name) if method else None
 
     def execute(self, action):
         try:
@@ -63,6 +73,13 @@ class ActionExecutor:
             description = self.backend.describe_result(action.arguments["result_id"])
         elif action.name == "open_correlated_result":
             description = self.backend.describe_correlated_result(action.arguments["position"])
+        elif action.name in {"click_control", "fill_control"}:
+            description = self.backend.describe_ui_action(action.arguments["control_id"],
+                                                          action.arguments.get("text"))
+        elif action.name == "whatsapp_send_message":
+            if self.message_send_attempted:
+                raise RuntimeError("Um envio já foi tentado nesta tarefa. Confira o WhatsApp antes de um novo pedido.")
+            description = self.backend.describe_whatsapp_message(action.arguments["draft_id"])
         # High volume also requires explicit approval, regardless of the source of the action.
         sensitive = tool.confirmation or (
             action.name == "set_volume" and action.arguments["percent"] > 70
@@ -71,6 +88,8 @@ class ActionExecutor:
             return "Action denied by user."
         if self.cancelled.is_set():
             raise InterruptedError("Task interrupted.")
+        if action.name == "whatsapp_send_message":
+            self.message_send_attempted = True
         return getattr(self.backend, tool.name)(**action.arguments)
 
     def execute_plan(self, actions):

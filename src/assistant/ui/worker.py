@@ -1,5 +1,5 @@
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from threading import Event
 
 from PySide6.QtCore import QThread, Signal
@@ -83,9 +83,14 @@ class TaskWorker(QThread):
                     self.backend_factory(), self.confirm, self.dry_run, self.cancelled,
                     activity=(ActivityStore(self.database_path, self.settings.command_history_retention_days)
                               if self.settings.command_history_enabled and not self.dry_run else None),
+                    settings=self.settings, database_path=self.database_path,
                 )
-                provider = self.provider_factory(self.settings, tracker)
-                assistant = Orchestrator(executor, provider, self.settings.max_tool_rounds, memory)
+                planner_settings = (replace(self.settings, max_input_bytes=self.settings.automation_input_bytes)
+                                    if self.settings.desktop_automation_enabled else self.settings)
+                provider = self.provider_factory(planner_settings, tracker)
+                rounds = (self.settings.automation_max_steps if self.settings.desktop_automation_enabled
+                          else self.settings.max_tool_rounds)
+                assistant = Orchestrator(executor, provider, rounds, memory)
                 output = assistant.run(self.text)
                 if self.cancelled.is_set():
                     raise InterruptedError("Tarefa interrompida / Task interrupted.")

@@ -8,6 +8,8 @@ O código deste projeto acompanha a distribuição em um arquivo de fontes separ
 - faster-whisper: MIT, https://github.com/SYSTRAN/faster-whisper
 - PySide6/Qt: LGPL/GPL/comercial conforme componentes, https://www.qt.io/licensing/
 - Playwright: Apache-2.0, https://github.com/microsoft/playwright-python
+- python-docx: MIT, https://github.com/python-openxml/python-docx
+- lxml: BSD-3-Clause, https://github.com/lxml/lxml (inclui componentes com avisos próprios).
 - Chromium: licenças do Chromium, https://www.chromium.org/chromium-projects/
 - CTranslate2: MIT, https://github.com/OpenNMT/CTranslate2
 - ONNX Runtime: MIT, https://github.com/microsoft/onnxruntime

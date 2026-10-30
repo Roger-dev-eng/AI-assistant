@@ -66,15 +66,17 @@ def main():
         return run_desktop(settings, args.dry_run, args.offline, args.tray, args.setup)
     settings = select_model(settings, args.secondary)
     tracker = UsageTracker(data_path())
-    executor = ActionExecutor(WindowsTools(), terminal_confirm, args.dry_run)
+    executor = ActionExecutor(WindowsTools(), terminal_confirm, args.dry_run,
+                              settings=settings, database_path=data_path())
     memory = (
         ConversationMemory(data_path(), settings.memory_retention_days, settings.memory_max_turns)
         if settings.memory_enabled
         else None
     )
-    assistant = Orchestrator(
-        executor, BedrockProvider(settings, tracker), settings.max_tool_rounds, memory
-    )
+    planner_settings = (replace(settings, max_input_bytes=settings.automation_input_bytes)
+                        if settings.desktop_automation_enabled else settings)
+    rounds = settings.automation_max_steps if settings.desktop_automation_enabled else settings.max_tool_rounds
+    assistant = Orchestrator(executor, BedrockProvider(planner_settings, tracker), rounds, memory)
 
     def run(text):
         executor.cancelled.clear()
@@ -106,6 +108,11 @@ def main():
                 continue
             run(text)
     finally:
+        from assistant.core.research import shutdown_research
+        from assistant.tools.navigation import shutdown_navigation
+
+        shutdown_research()
+        shutdown_navigation()
         if memory is not None:
             memory.close()
         tracker.close()

@@ -5,10 +5,12 @@ from assistant.tools.registry import bedrock_tools
 
 
 class BedrockProvider:
-    def __init__(self, settings, tracker, client=None):
+    def __init__(self, settings, tracker, client=None, tool_names=None):
         self.settings = settings
         self.tracker = tracker
         self.client = client
+        self.tool_names = tool_names
+        self.last_stop_reason = None
         self.system = files("assistant.ai").joinpath("prompts/system_en.txt").read_text("utf-8")
 
     def converse(self, messages):
@@ -18,9 +20,14 @@ class BedrockProvider:
             "modelId": self.settings.model_id,
             "messages": messages,
             "system": [{"text": self.system}],
-            "toolConfig": {"tools": bedrock_tools()},
             "inferenceConfig": {"maxTokens": self.settings.max_output_tokens, "temperature": 0},
         }
+        if self.tool_names != ():
+            tools = bedrock_tools()
+            if self.tool_names is not None:
+                tools = [tool for tool in tools if tool["toolSpec"]["name"] in self.tool_names]
+            if tools:
+                request["toolConfig"] = {"tools": tools}
         # Conservative application estimate: one token per serialized UTF-8 byte, including schemas.
         # This is not a billing guarantee; rates must match the configured model.
         size = len(json.dumps(request, ensure_ascii=False).encode("utf-8"))
@@ -43,6 +50,7 @@ class BedrockProvider:
         ) / 1_000_000
         record = self.tracker.reserve(self.settings, reserved_cost)
         response = self.client.converse(**request)
+        self.last_stop_reason = response.get("stopReason")
         # Missing usage or network errors retain the reservation, rather than assuming zero cost.
         if "usage" in response:
             self.tracker.settle(record, response["usage"], self.settings)

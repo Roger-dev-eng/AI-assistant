@@ -28,6 +28,14 @@ def action_summary(action, simulated=False):
         "open_search_result": "Resultado selecionado aberto.",
         "open_site": "Site aberto no navegador.",
         "active_app": "Consulta da janela ativa concluída.",
+        "inspect_app": "Controles da janela consultados.",
+        "click_control": "Ação de interface acionada; o resultado precisa ser conferido.",
+        "fill_control": "Campo preenchido sem pressionar Enter.",
+        "whatsapp_prepare_message": "Rascunho preparado no WhatsApp, sem envio.",
+        "whatsapp_send_message": "Mensagem visível na conversa; entrega não verificada.",
+        "create_word_document": "Documento Word criado na Área de Trabalho.",
+        "start_research_report": "Tarefa de pesquisa iniciada; o documento ainda não está pronto.",
+        "research_task_status": "Estado da tarefa consultado.",
     }
     text = messages.get(action.name, f"Ferramenta {action.name} concluída.")
     return f"Simulação: {text}" if simulated else text
@@ -406,7 +414,9 @@ class SonicProvider:
                         identifier in seen
                         or call["contentId"] in tool_calls
                         or any(identifier == pending_id for pending_id, _ in tool_calls.values())
-                        or len(seen) + len(tool_calls) >= 10
+                        or len(seen) + len(tool_calls) >= (
+                            self.settings.automation_max_steps if self.settings.desktop_automation_enabled else 10
+                        )
                     ):
                         raise ValueError("Chamada de ferramenta duplicada ou limite excedido.")
                     args = (

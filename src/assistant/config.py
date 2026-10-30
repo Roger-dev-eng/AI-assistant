@@ -28,6 +28,10 @@ class Settings:
     memory_enabled: bool = False
     command_history_enabled: bool = True
     command_history_retention_days: int = 30
+    desktop_automation_enabled: bool = True
+    automation_max_steps: int = 15
+    automation_input_bytes: int = 64000
+    research_enabled: bool = True
     memory_retention_days: int = 7
     memory_max_turns: int = 6
     secondary_model_id: str = ""
@@ -86,6 +90,8 @@ class Settings:
             raise ValueError("Memory retention must be 1–365 days and 1–20 turns.")
         if not 1 <= self.command_history_retention_days <= 365:
             raise ValueError("Command history retention must be 1–365 days.")
+        if not 5 <= self.automation_max_steps <= 30 or not 24000 <= self.automation_input_bytes <= 128000:
+            raise ValueError("Automation limits must be 5–30 steps and 24000–128000 input bytes.")
         if self.secondary_model_id and any(
             value is None or not math.isfinite(value) or value <= 0
             for value in (self.secondary_input_rate, self.secondary_output_rate)
@@ -119,6 +125,10 @@ class Settings:
             "MEMORY_ENABLED": "memory_enabled",
             "COMMAND_HISTORY_ENABLED": "command_history_enabled",
             "COMMAND_HISTORY_RETENTION_DAYS": "command_history_retention_days",
+            "DESKTOP_AUTOMATION_ENABLED": "desktop_automation_enabled",
+            "AUTOMATION_MAX_STEPS": "automation_max_steps",
+            "AUTOMATION_INPUT_BYTES": "automation_input_bytes",
+            "RESEARCH_ENABLED": "research_enabled",
             "MEMORY_RETENTION_DAYS": "memory_retention_days",
             "MEMORY_MAX_TURNS": "memory_max_turns",
             "SECONDARY_MODEL_ID": "secondary_model_id",
