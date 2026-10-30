@@ -13,8 +13,10 @@ from assistant.updates import (
     API_URL,
     RELEASES_URL,
     check_update,
+    current_version,
     download_update,
     ensure_no_other_instances,
+    installation_status_message,
     safe_url,
     start_install,
 )
@@ -46,6 +48,25 @@ def test_only_newer_stable_releases_are_offered():
     assert check_update("0.3.0", lambda _: io.BytesIO(json.dumps(data).encode())) is None
     data["prerelease"] = True
     assert available(data) is None
+
+
+def test_frozen_version_uses_executable_identity_instead_of_stale_metadata(monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_assistant_build_version", "0.3.10", raising=False)
+    with patch("assistant.updates.version", return_value="0.3.8") as metadata:
+        assert current_version() == "0.3.10"
+    metadata.assert_not_called()
+
+
+def test_success_from_another_installed_version_is_not_presented_as_confirmed():
+    with patch("assistant.updates.current_version", return_value="0.3.8"):
+        message = installation_status_message({
+            "success": True, "installed_version": "0.3.10", "message": "Atualização instalada.",
+        })
+    assert "não foi confirmada" in message
+    assert "0.3.8" in message and "0.3.10" in message
 
 
 @pytest.mark.parametrize("field,value", [

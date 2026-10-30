@@ -60,6 +60,7 @@ jobs:
           if ($process.ExitCode -ne 0 -or !(Test-Path -LiteralPath $report)) { throw 'Frozen diagnostics failed.' }
           $result = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
           if (!$result.frozen -or $result.cloud_calls -ne 0) { throw 'Invalid diagnostics report.' }
+          if ($result.version -ne $env:APP_VERSION) { throw 'Frozen application version mismatch.' }
       - name: Compile installer
         shell: pwsh
         run: |
@@ -67,6 +68,8 @@ jobs:
           if (!(Test-Path -LiteralPath $compiler)) { throw 'Inno Setup compiler is required on the runner.' }
           & $compiler packaging/windows.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify content-aware reinstall and preservation of user data
+        run: python scripts/verify_installer_update.py
       - name: Collect native Windows crash events
         if: always()
         shell: pwsh

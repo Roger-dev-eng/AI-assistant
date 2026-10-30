@@ -226,6 +226,8 @@ Para usar pelo terminal:
 
 Na versão instalada, abra **Aplicativo → Verificar atualizações**. Após sua confirmação, o aplicativo baixa o instalador oficial, verifica tamanho e SHA-256, fecha, atualiza a mesma instalação e reabre. Configurações, modelos e credenciais são preservados.
 
+A partir da **0.3.10**, o instalador compara SHA-256 de cada arquivo e mantém os que já são idênticos, substituindo apenas os ausentes ou diferentes. O download continua sendo do instalador completo. A versão vem identificada no executável, evitando que metadados antigos façam uma instalação nova aparecer como antiga. O instalador limpa somente metadados antigos reconhecidos; o atualizador também pode remover bibliotecas e arquivos antigos do navegador previamente registrados como parte do aplicativo, se continuarem com o conteúdo original. Na limpeza de arquivos obsoletos, arquivos desconhecidos ou modificados são mantidos. Bancos e preferências não são alvos da instalação ou da limpeza.
+
 Versões anteriores à **0.3.0** precisam de uma atualização manual inicial para receber esse recurso. A consulta de versões acontece ao abrir a opção no menu.
 
 A versão **0.3.2** substitui o auxiliar PowerShell por um executável nativo, eliminando a dependência da política de scripts. Se uma versão anterior baixar o pacote e mostrar que o Windows não iniciou o atualizador, instale a 0.3.2 manualmente por cima da atual. Não é necessário desinstalar nem alterar as políticas do Windows.

@@ -12,7 +12,7 @@ using System.Web.Script.Serialization;
 // Small Windows helper. No PowerShell, shell commands or changes to execution policy.
 internal static class AssistantUpdater
 {
-    private static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
+    private static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 4194304 };
     private static string tracePath;
 
     private static void Trace(string stage, int? code = null, string errorType = null)
@@ -55,10 +55,100 @@ internal static class AssistantUpdater
         return String.Equals(left, right, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void Status(string path, bool success, string message)
+    private static void Status(string path, bool success, string message, string installedVersion = null)
     {
-        File.WriteAllText(path, Json.Serialize(new { success = success, message = message }),
+        File.WriteAllText(path, Json.Serialize(new {
+            success = success, message = message, installed_version = installedVersion
+        }),
                           new UTF8Encoding(false));
+    }
+
+    private static Dictionary<string, object> ReadManifest(string directory)
+    {
+        string path = Path.Combine(directory, "application-manifest.json");
+        if (new FileInfo(path).Length > 4194304)
+            throw new InvalidDataException("Manifesto da instalação grande demais.");
+        return Json.Deserialize<Dictionary<string, object>>(File.ReadAllText(path, Encoding.UTF8));
+    }
+
+    private static string FileHash(string path)
+    {
+        using (var source = File.OpenRead(path))
+        using (var sha = SHA256.Create())
+            return BitConverter.ToString(sha.ComputeHash(source)).Replace("-", "").ToLowerInvariant();
+    }
+
+    private static string OwnedPath(string directory, string relative)
+    {
+        if (Path.IsPathRooted(relative) || relative.IndexOf(':') >= 0 ||
+            relative.IndexOf('\\') >= 0 || relative.IndexOf('\0') >= 0)
+            throw new InvalidDataException("Caminho inválido no manifesto.");
+        foreach (string part in relative.Split('/'))
+            if (part == "" || part == "." || part == ".." || part.EndsWith(".") || part.EndsWith(" "))
+                throw new InvalidDataException("Caminho inválido no manifesto.");
+        string root = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar);
+        string target = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+        if (!target.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Arquivo fora da instalação.");
+        string current = root;
+        if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+            throw new InvalidDataException("A instalação usa um redirecionamento de pasta.");
+        foreach (string part in relative.Split('/'))
+        {
+            current = Path.Combine(current, part);
+            if ((Directory.Exists(current) || File.Exists(current)) &&
+                (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("O manifesto aponta para um redirecionamento.");
+        }
+        return target;
+    }
+
+    private static Dictionary<string, object> VerifyInstallation(string directory, string expectedVersion)
+    {
+        var manifest = ReadManifest(directory);
+        if (Text(manifest, "version") != expectedVersion)
+            throw new InvalidDataException("O instalador terminou, mas a versão instalada não é " + expectedVersion + ".");
+        var files = (Dictionary<string, object>)manifest["files"];
+        string expectedHash = Text(files, "AssistantDesktop.exe");
+        if (!Regex.IsMatch(expectedHash, @"\A[a-f0-9]{64}\z") ||
+            FileHash(OwnedPath(directory, "AssistantDesktop.exe")) != expectedHash)
+            throw new InvalidDataException("O executável instalado não corresponde à versão esperada.");
+        return files;
+    }
+
+    private static void RemoveObsoleteFiles(string directory, Dictionary<string, object> previous,
+                                             Dictionary<string, object> installed)
+    {
+        if (previous == null || !previous.ContainsKey("files")) return;
+        var files = previous["files"] as Dictionary<string, object>;
+        if (files == null) return;
+        var activePaths = new HashSet<string>(installed.Keys, StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in files)
+        {
+            if (activePaths.Contains(entry.Key)) continue;
+            try
+            {
+                string name = Path.GetFileName(entry.Key).ToLowerInvariant();
+                string extension = Path.GetExtension(name);
+                // Databases, credentials and preferences are never cleanup targets,
+                // even if an old or tampered manifest claims ownership of them.
+                if (name.StartsWith(".env", StringComparison.Ordinal) || name == "settings.json" || name == "credentials" ||
+                    name == "config" || name == "application-manifest.json" ||
+                    extension.StartsWith(".db") || extension.StartsWith(".sqlite")) continue;
+                // Only program binaries and versioned bundled browser files can become obsolete.
+                // User-selected voice models and arbitrary documents remain untouched.
+                if (!(extension == ".dll" || extension == ".pyd" ||
+                      entry.Key.StartsWith("_internal/browsers/", StringComparison.Ordinal))) continue;
+                string path = OwnedPath(directory, entry.Key);
+                string hash = Convert.ToString(entry.Value);
+                if (File.Exists(path) && Regex.IsMatch(hash, @"\A[a-f0-9]{64}\z") && FileHash(path) == hash)
+                {
+                    File.Delete(path);
+                    Trace("cleanup.obsolete_file.removed");
+                }
+            }
+            catch (Exception error) { Trace("cleanup.file.preserved", null, error.GetType().Name); }
+        }
     }
 
     private static bool OtherInstance(string executable)
@@ -159,6 +249,10 @@ internal static class AssistantUpdater
 
             tracePath = Path.Combine(cache, "updater-" + Process.GetCurrentProcess().Id + ".jsonl");
             Trace("manifest.validated");
+            string expectedVersion = Path.GetFileName(installer).Substring("AssistantDesktop-".Length);
+            expectedVersion = expectedVersion.Substring(0, expectedVersion.Length - "-Setup.exe".Length);
+            if (data.ContainsKey("expected_version") && Text(data, "expected_version") != expectedVersion)
+                throw new InvalidDataException("Versão solicitada diferente do instalador.");
 
             Process previous = null;
             try { previous = Process.GetProcessById(Convert.ToInt32(data["process"])); }
@@ -195,6 +289,9 @@ internal static class AssistantUpdater
                     throw new InvalidDataException("O instalador mudou antes da instalação. Atualização cancelada.");
             }
             Trace("installer.hash.end");
+            Dictionary<string, object> previousManifest = null;
+            try { previousManifest = ReadManifest(directory); }
+            catch { Trace("manifest.previous.unavailable"); }
             Trace("installer.start");
             string options = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS " +
                              "/NORESTARTAPPLICATIONS /DIR=\"" + directory + "\" /LOG=\"" + log + "\"";
@@ -212,7 +309,11 @@ internal static class AssistantUpdater
                             "eles podem estar em uso por outra instância. " : "") +
                         "O instalador retornou o código " + installation.ExitCode + ". Consulte install.log.");
             }
-            Status(status, true, "Atualização instalada.");
+            Trace("installation.verify.begin");
+            var installedFiles = VerifyInstallation(directory, expectedVersion);
+            Trace("installation.verify.end");
+            RemoveObsoleteFiles(directory, previousManifest, installedFiles);
+            Status(status, true, "Atualização instalada e verificada: " + expectedVersion + ".", expectedVersion);
             File.Delete(marker);
             Trace("application.restart.begin");
             Restart(executable);

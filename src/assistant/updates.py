@@ -34,7 +34,21 @@ def version_tuple(value):
 
 
 def current_version():
+    if getattr(sys, "frozen", False):
+        embedded = getattr(sys, "_assistant_build_version", "")
+        if not embedded:
+            raise RuntimeError("A identificação da versão deste executável está ausente.")
+        version_tuple(embedded)
+        return embedded
     return version("assistant-desktop")
+
+
+def installation_status_message(report):
+    verified = report.get("installed_version")
+    if report.get("success") and verified and verified != current_version():
+        return (f"O instalador informou {verified}, mas este aplicativo é {current_version()}. "
+                "A atualização não foi confirmada. Consulte install.log.")
+    return report.get("message", "")
 
 
 def safe_url(value):
@@ -200,6 +214,7 @@ def start_install(release, installer, directory):
         "log": str(directory / "install.log"), "status": str(directory / "status.json"),
         "ready": str(ready),
         "sha256": release.sha256,
+        "expected_version": release.version,
         "notify_failure": True,
     }), "utf-8")
     helper = directory / f"AssistantUpdater-{uuid.uuid4().hex}.exe"

@@ -48,3 +48,36 @@ Em timeout, os logs de etapas já escritos continuam no artefato.
 
 A instrumentação não corrige por si só o erro `0xC0000005`. Ela permite coletar
 evidências na próxima ocorrência antes de escolher uma correção.
+
+## Atualização por conteúdo — 0.3.10
+
+O `install.log` registra `KEEP` para arquivos idênticos, `UPDATE` para arquivos
+ausentes/diferentes e um resumo `CONTENT UPDATE` com as quantidades. O instalador
+completo ainda é baixado; a economia ocorre na cópia e extração dos arquivos.
+O ganho varia conforme disco, antivírus e quantidade de arquivos alterados.
+
+O executável leva sua versão embutida. `application-manifest.json`, dentro da
+instalação, registra versão e hashes dos arquivos distribuídos. Após o instalador,
+o novo auxiliar verifica a versão esperada e o hash do executável antes de declarar
+sucesso e reabrir. Os logs incluem `installation.verify.begin/end` e eventos de
+limpeza. O aplicativo também rejeita uma confirmação de sucesso de outra versão.
+
+A limpeza de metadados antigos não é recursiva: exige o nome e a versão do pacote
+no `METADATA`, recusa redirecionamentos e preserva a pasta inteira se houver um
+arquivo desconhecido. Para remover outros arquivos obsoletos, o auxiliar exige
+que estejam no manifesto anterior, ausentes no novo, dentro da instalação e com
+o hash original. Isso se limita a bibliotecas e arquivos de navegador; modelos
+selecionados pelo usuário não são alvos. Bancos, preferências, `.env` e credenciais
+são protegidos mesmo se citados pelo manifesto antigo. Não há exclusão geral de
+`_internal`, da instalação ou da pasta de dados do usuário.
+
+Instalações anteriores à 0.3.10 não possuem manifesto; arquivos sem origem
+comprovável são mantidos. A correção de metadados é aplicada pelo próprio novo
+instalador, inclusive ao atualizar usando um auxiliar antigo.
+
+No Actions, o artefato `frozen-application-diagnostics` inclui `fresh-install.log`,
+`content-aware-reinstall.log`, `installed-version.json` e `installer-timing.json`.
+O teste instala em uma pasta isolada do runner, repete a instalação, confere que
+arquivos idênticos não foram regravados, repara um arquivo alterado e verifica a
+preservação de dados fictícios. Os tempos são desse runner, não uma previsão para
+o computador do usuário.

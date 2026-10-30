@@ -106,8 +106,12 @@ def test_locked_image_is_rejected_before_installing(native_updater, tmp_path):
         kernel.CloseHandle(handle)
 
 
-@pytest.mark.parametrize("install_code", [0, 5])
-def test_update_waits_for_exit_and_restarts_only_on_success(native_updater, tmp_path, install_code):
+@pytest.mark.parametrize("install_code,verification", [
+    (0, "valid"), (5, "valid"), (0, "wrong_version"), (0, "wrong_hash"),
+])
+def test_update_waits_for_exit_and_restarts_only_on_success(
+    native_updater, tmp_path, install_code, verification,
+):
     import hashlib
     from pathlib import Path
 
@@ -135,8 +139,32 @@ def test_update_waits_for_exit_and_restarts_only_on_success(native_updater, tmp_
                     ')) System.Threading.Thread.Sleep(20); return 0;', target)
     compile_program("NewApp", 'System.IO.File.AppendAllText(' + quote(restart_file) +
                     ', "start\\n"); return 0;', replacement)
+    manifest_source = tmp_path / "new-manifest.json"
+    installed_manifest = target.parent / "application-manifest.json"
+    manifest_source.write_text(json.dumps({
+        "version": "0.0.0" if verification == "wrong_version" else "0.3.2",
+        "files": {"AssistantDesktop.exe": (
+            "0" * 64 if verification == "wrong_hash"
+            else hashlib.sha256(replacement.read_bytes()).hexdigest()
+        )},
+    }), "utf-8")
+    obsolete = target.parent / "obsolete.dll"
+    obsolete.write_bytes(b"old bundled library")
+    modified = target.parent / "modified.dll"
+    modified.write_bytes(b"user modified this file")
+    database = target.parent / "history.sqlite3"
+    database.write_bytes(b"sensitive history")
+    outside = tmp_path / "outside.dll"
+    outside.write_bytes(b"outside installation")
+    installed_manifest.write_text(json.dumps({"version": "0.3.1", "files": {
+        "obsolete.dll": hashlib.sha256(obsolete.read_bytes()).hexdigest(),
+        "modified.dll": hashlib.sha256(b"original library").hexdigest(),
+        "history.sqlite3": hashlib.sha256(database.read_bytes()).hexdigest(),
+        "../outside.dll": hashlib.sha256(outside.read_bytes()).hexdigest(),
+    }}), "utf-8")
     installer_body = (
         'System.IO.File.Copy(' + quote(replacement) + ', ' + quote(target) +
+        ', true); System.IO.File.Copy(' + quote(manifest_source) + ', ' + quote(installed_manifest) +
         ', true); System.IO.File.WriteAllText(' + quote(installed_file) +
         ', "installed"); return 0;' if install_code == 0 else 'return 5;'
     )
@@ -160,7 +188,7 @@ def test_update_waits_for_exit_and_restarts_only_on_success(native_updater, tmp_
         child.wait(timeout=5)
         result = helper.wait(timeout=20)
         status = json.loads(Path(data["status"]).read_text("utf-8"))
-        if install_code == 0:
+        if install_code == 0 and verification == "valid":
             assert result == 0, status
             deadline = time.monotonic() + 5
             while not restart_file.exists() and time.monotonic() < deadline:
@@ -168,14 +196,20 @@ def test_update_waits_for_exit_and_restarts_only_on_success(native_updater, tmp_
             assert target.read_bytes() == replacement.read_bytes()
             assert restart_file.read_text().splitlines() == ["start"]
             assert status["success"] is True
+            assert status["installed_version"] == "0.3.2"
+            assert not obsolete.exists()
         else:
             assert result == 1, status
             assert status["success"] is False
-            assert "código 5" in status["message"]
+            assert ("código 5" if install_code == 5 else "versão") in status["message"]
+            assert obsolete.exists(), "Cleanup ran before installation was verified"
             deadline = time.monotonic() + 1
             while time.monotonic() < deadline:
                 assert not restart_file.exists(), "The failed update restarted the old application"
                 time.sleep(0.02)
+        assert database.read_bytes() == b"sensitive history"
+        assert modified.read_bytes() == b"user modified this file"
+        assert outside.read_bytes() == b"outside installation"
         assert not (tmp_path / "active-update.json").exists()
     finally:
         stop_file.write_text("close", "utf-8")

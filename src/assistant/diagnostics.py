@@ -7,6 +7,7 @@ from unittest.mock import Mock
 from assistant.core.action_executor import ActionExecutor
 from assistant.core.orchestrator import Orchestrator
 from assistant.tools.windows import WindowsTools
+from assistant.updates import current_version
 
 
 def write_diagnostics(path, settings):
@@ -49,6 +50,7 @@ def write_diagnostics(path, settings):
     report = {
         "python": sys.version,
         "frozen": bool(getattr(sys, "frozen", False)),
+        "version": current_version(),
         "imports": checks,
         "offline_simulation": result,
         "cloud_calls": provider.converse.call_count,

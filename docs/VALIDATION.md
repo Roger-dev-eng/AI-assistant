@@ -2,6 +2,24 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Versão 0.3.10 — atualização por conteúdo e identidade da versão
+
+- Na máquina do usuário, o instalador 0.3.9 terminou com sucesso e substituiu o
+  executável, mas coexistiam metadados 0.3.8/0.3.9. A consulta à versão escolhia
+  0.3.8. Nenhum arquivo da instalação foi removido durante essa investigação.
+- A versão do pacote congelado agora é embutida no executável pelo build. O
+  instalador compara conteúdo por SHA-256, preserva arquivos idênticos e limpa
+  somente pastas antigas de metadados identificadas e sem arquivos desconhecidos.
+- O novo auxiliar confirma versão/hash após instalar. A limpeza de arquivos
+  obsoletos exige manifesto anterior e hash original e não atinge dados pessoais.
+- Testes do auxiliar incluem instalador que retorna sucesso com versão/hash
+  incorretos, preservação do banco, arquivo modificado e caminho fora da instalação.
+- Uma etapa do Actions instala e reinstala o pacote em pasta isolada, verifica
+  reparação de arquivo alterado, preservação de dados fictícios e manutenção do
+  timestamp do executável idêntico, e registra os tempos de instalação.
+- Nenhuma suíte ou instalação foi executada localmente. Resultados do Actions e
+  ganho real de tempo no computador do usuário permanecem pendentes.
+
 ## Versão 0.3.9 — ativação offline contínua para Sonic
 
 - A espera por Assistente usa Vosk com vocabulário restrito e não cria o provedor

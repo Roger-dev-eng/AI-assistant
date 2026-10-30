@@ -20,6 +20,7 @@ from assistant.updates import (
     current_version,
     download_update,
     ensure_no_other_instances,
+    installation_status_message,
     installed_executable,
     start_install,
 )
@@ -101,7 +102,7 @@ class UpdateDialog(QDialog):
         if status_file.is_file():
             try:
                 previous = json.loads(status_file.read_text("utf-8-sig"))
-                self.status.setText(previous.get("message", ""))
+                self.status.setText(installation_status_message(previous))
                 status_file.unlink()
             except (OSError, ValueError):
                 pass
