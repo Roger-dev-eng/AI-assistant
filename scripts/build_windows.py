@@ -5,11 +5,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+from build_updater import build_updater
+
 
 def main():
     if os.name != "nt" or sys.version_info[:2] != (3, 12):
         raise SystemExit("Build with Python 3.12 on Windows.")
     root = Path(__file__).resolve().parents[1]
+    updater = build_updater()
     cache = Path(os.environ["LOCALAPPDATA"]) / "ms-playwright"
     browsers = [
         path
@@ -37,6 +40,8 @@ def main():
         str(root / "build"),
         "--collect-data",
         "assistant",
+        "--add-binary",
+        f"{updater}:assistant",
         "--hidden-import",
         "PySide6.QtWidgets",
     ]

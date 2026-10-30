@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -153,6 +154,10 @@ def installed_executable():
     return executable
 
 
+def updater_executable():
+    return Path(__file__).with_name("AssistantUpdater.exe")
+
+
 def start_install(release, installer, directory):
     executable = installed_executable()
     installer = Path(installer).resolve()
@@ -173,22 +178,27 @@ def start_install(release, installer, directory):
         "ready": str(ready),
         "sha256": release.sha256,
     }), "utf-8")
-    helper = directory / "apply-update.ps1"
-    helper.write_bytes(b"\xef\xbb\xbf" + Path(__file__).with_name("apply_update.ps1").read_bytes())
-    powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    helper = directory / f"AssistantUpdater-{uuid.uuid4().hex}.exe"
+    source_helper = updater_executable()
+    if not source_helper.is_file():
+        parameters.unlink(missing_ok=True)
+        raise RuntimeError("O auxiliar nativo de atualização está ausente. Reinstale a versão atual.")
+    shutil.copyfile(source_helper, helper)
     process = None
     try:
-        process = subprocess.Popen(
-            [str(powershell), "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
-             "-File", str(helper), "-ParametersFile", str(parameters)],
-            creationflags=subprocess.CREATE_NO_WINDOW,
-            close_fds=True,
-        )
-        deadline = time.monotonic() + 10
+        with (directory / "startup.log").open("ab") as startup_log:
+            process = subprocess.Popen(
+                [str(helper), str(parameters)],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                close_fds=True, stdout=startup_log, stderr=startup_log,
+            )
+        deadline = time.monotonic() + 20
         while not ready.exists():
             if process.poll() is not None or time.monotonic() >= deadline:
                 raise RuntimeError(
-                    "O Windows não iniciou o atualizador. O aplicativo continuará aberto."
+                    "O Windows não iniciou o atualizador nativo "
+                    f"(código {process.poll()}). Consulte updates/startup.log e status.json. "
+                    "O aplicativo continuará aberto."
                 )
             time.sleep(0.05)
         ready.unlink(missing_ok=True)
@@ -196,4 +206,5 @@ def start_install(release, installer, directory):
         if process is not None and process.poll() is None:
             process.terminate()
         parameters.unlink(missing_ok=True)
+        ready.unlink(missing_ok=True)
         raise

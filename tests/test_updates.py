@@ -111,6 +111,8 @@ def test_installer_is_rechecked_before_launch_and_helper_receives_data(tmp_path,
     installer = tmp_path / release.name
     installer.write_bytes(b"installer")
     executable = tmp_path / "installed" / "AssistantDesktop.exe"
+    helper_source = tmp_path / "native-source.exe"
+    helper_source.write_bytes(b"native-helper")
     monkeypatch.setenv("SystemRoot", "C:/Windows")
     process = Mock()
     process.poll.return_value = None
@@ -122,10 +124,13 @@ def test_installer_is_rechecked_before_launch_and_helper_receives_data(tmp_path,
         assert parameters["sha256"] == release.sha256
         Path(parameters["ready"]).write_text("ready")
         assert "-ExecutionPolicy" not in args
+        assert args[0].endswith(".exe")
+        assert not any("powershell" in str(arg).lower() for arg in args)
         return process
 
     with (
         patch("assistant.updates.installed_executable", return_value=executable),
+        patch("assistant.updates.updater_executable", return_value=helper_source),
         patch("assistant.updates.subprocess.Popen", side_effect=launch) as spawn,
     ):
         start_install(release, installer, tmp_path)

@@ -222,6 +222,8 @@ Na versão instalada, abra **Aplicativo → Verificar atualizações**. Após su
 
 Versões anteriores à **0.3.0** precisam de uma atualização manual inicial para receber esse recurso. A consulta de versões acontece ao abrir a opção no menu.
 
+A versão **0.3.2** substitui o auxiliar PowerShell por um executável nativo, eliminando a dependência da política de scripts. Se uma versão anterior baixar o pacote e mostrar que o Windows não iniciou o atualizador, instale a 0.3.2 manualmente por cima da atual. Não é necessário desinstalar nem alterar as políticas do Windows.
+
 A distribuição utiliza [GitHub Releases](https://github.com/Roger-dev-eng/AI-assistant/releases). Para publicar uma versão, atualize os metadados em `pyproject.toml` e `packaging/windows.iss`, envie o código e publique a tag `vX.Y.Z`. O GitHub Actions valida a versão, executa os testes, gera o aplicativo, verifica seu diagnóstico e publica instalador, fontes e hashes.
 
 O workflow também pode ser iniciado manualmente para gerar artefatos sem publicar uma release. Os scripts de build ficam disponíveis para desenvolvimento; o instalador utiliza PyInstaller e Inno Setup.

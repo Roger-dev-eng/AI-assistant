@@ -30,6 +30,10 @@ def write_diagnostics(path, settings):
         except Exception as exc:
             checks[name] = str(exc)
     provider = Mock()
+    if getattr(sys, "frozen", False):
+        from assistant.updates import updater_executable
+
+        checks["native_updater"] = "ok" if updater_executable().is_file() else "missing"
     result = Orchestrator(
         ActionExecutor(WindowsTools(), lambda _: False, dry_run=True), provider
     ).run("Open Chrome and search Python on YouTube")

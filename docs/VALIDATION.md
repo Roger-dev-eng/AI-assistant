@@ -2,6 +2,21 @@
 
 Validado em 29/10/2026, Windows x64 e Python 3.12.14.
 
+## Correção 0.3.2 — auxiliar nativo de atualização
+
+- O Windows PowerShell usado pelo atualizador retornou política efetiva
+  `Restricted`, enquanto o PowerShell do terminal usa configuração separada.
+- Substitui o arquivo `.ps1` por um executável C# compilado com o .NET Framework
+  do Windows e incluído no pacote. Nenhuma política de execução é alterada.
+- Preserva a confirmação de início, a espera pelo encerramento do app, o SHA-256,
+  a atualização na mesma pasta e o reinício. Falhas antes de o app fechar não
+  abrem uma segunda instância.
+- Novos testes no Actions compilam e iniciam o auxiliar real com um instalador
+  inválido e verificam rejeição antes de instalar. Não usam a instalação do usuário.
+- O diagnóstico do executável exige a presença do auxiliar no pacote.
+- A atualização corretiva exige instalação manual nas versões cujo auxiliar
+  PowerShell foi bloqueado. Testes e publicação seguem pelo GitHub Actions.
+
 ## Correção 0.3.1 — continuidade do fluxo Sonic
 
 - Mantém o conteúdo de áudio aberto até concluir a interação. Após enviar a frase,
