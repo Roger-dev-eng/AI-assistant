@@ -47,6 +47,10 @@ class IntentRouter:
         value = normalize(text)
         if not value:
             return None
+        if value in {"volte", "voltar", "volte a pagina anterior", "pagina anterior", "go back"}:
+            return [Action("browser_back")]
+        if value in {"continue a pesquisa", "retome a pesquisa", "continue aquela pesquisa", "retome aquela pesquisa"}:
+            return None  # Planner must inspect candidates and clarify; never replay arbitrary history.
         # Research is one job, not a sequence constrained by the voice session.
         report = re.fullmatch(
             r"(?:pesquise|pesquisa|pesquisar)\s+(?:sobre\s+)?(.+?)\s+(?:e\s+)?"

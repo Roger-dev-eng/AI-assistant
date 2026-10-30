@@ -2,6 +2,13 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Versão 0.3.15 — logins e continuidade
+
+- Perfil persistente próprio Chrome/Edge; cookies ficam na pasta de dados. Bloqueio de perfil não provoca exclusão. Sites ainda podem exigir verificação ou recusar login.
+- Consulta/seleção de abas atuais, leitura pública limitada e voltar. Referências ausentes falham sem inventar contexto.
+- Nova tentativa confirmada de pesquisas incompletas; tarefas ativas ou concluídas não são repetidas. Não há replay genérico de comandos.
+- Testes adicionados para perfil estável, navegador fechado, seleção de abas, voltar e retomada de pesquisa. Verificação local limitada à sintaxe, Ruff e diff; testes/instalador ficam no Actions, sem aguardar resultado. Nenhum login real, navegador pessoal, microfone ou AWS foi acessado.
+
 ## Versão 0.3.14 — Chrome e pesquisas na mesma aba
 
 - A abertura de Chrome agora passa pelo proprietário Playwright e mantém uma aba ativa entre comandos. Navegação reutiliza uma aba da janela controlada mesmo quando o destino muda de site; abas de WhatsApp são excluídas.

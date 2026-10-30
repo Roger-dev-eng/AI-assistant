@@ -12,7 +12,7 @@ from assistant.ai.bedrock_provider import BedrockProvider
 from assistant.cloud.usage_tracker import UsageTracker
 from assistant.config import Settings
 from assistant.core.intent_router import IntentRouter
-from assistant.core.research import run_research
+from assistant.core.research import ResearchManager, run_research
 from assistant.storage.tasks import TaskStore
 from assistant.tools.documents import create_document
 from assistant.tools.public_pages import PublicConnection, public_addresses, read_article
@@ -122,3 +122,27 @@ def test_research_command_is_one_independent_task():
     assert len(actions) == 1
     assert actions[0].name == "start_research_report"
     assert actions[0].arguments["pages"] == 1
+
+
+def test_resume_research_requires_unfinished_inactive_task_and_preserves_original(tmp_path):
+    manager = ResearchManager(tmp_path / "usage.sqlite3")
+    identifier = manager.store.create("Energia solar", "Relatório solar", 1)
+    manager.store.update(identifier, "failed", message="Interrupção simulada")
+    try:
+        with patch.object(manager, "submit", return_value="new-task") as submit:
+            assert manager.resume(Settings(), identifier) == "new-task"
+            assert submit.call_args.args[1:] == ("Energia solar", "Relatório solar", 1)
+            assert manager.store.get(identifier)["status"] == "failed"
+            with pytest.raises(ValueError, match="nova tentativa"):
+                manager.resume(Settings(), identifier)
+            manager.restarts.clear()
+            manager.jobs[identifier] = (Event(), Mock(done=Mock(return_value=False)))
+            with pytest.raises(ValueError, match="execução"):
+                manager.resume(Settings(), identifier)
+            manager.jobs.clear()
+            manager.store.update(identifier, "completed", output_path="existing.docx")
+            with pytest.raises(ValueError, match="documento"):
+                manager.resume(Settings(), identifier)
+            assert submit.call_count == 1
+    finally:
+        manager.close()

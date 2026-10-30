@@ -73,6 +73,60 @@ class WindowsTools:
     def read_search_results(self, query, engine):
         return self.browser.read_search_results(query, engine)
 
+    def browser_context(self):
+        import json
+
+        from assistant.tools.navigation import navigation_broker
+
+        return json.dumps(navigation_broker().call("browser_context", self.browser.cancelled), ensure_ascii=False)
+
+    def select_browser_tab(self, tab_id):
+        from assistant.tools.navigation import navigation_broker
+
+        state = navigation_broker().call("select_tab", tab_id, self.browser.cancelled)
+        if self.activity is not None:
+            self.activity.remember_navigation(state)
+        return f"Página selecionada: {state['url']}"
+
+    def browser_back(self):
+        from assistant.tools.navigation import navigation_broker
+
+        state = navigation_broker().call("go_back", self.browser.cancelled)
+        if self.activity is not None:
+            self.activity.remember_navigation(state)
+        return f"Voltou para: {state['url']}"
+
+    def read_current_page(self):
+        import json
+
+        from assistant.tools.navigation import navigation_broker
+        from assistant.tools.public_pages import read_article
+
+        context = navigation_broker().call("browser_context", self.browser.cancelled)
+        matches = [tab for tab in context["tabs"] if tab["tab_id"] == context["active_tab"]]
+        if len(matches) != 1:
+            raise ValueError("Não há uma página ativa identificada. Informe qual página deseja usar.")
+        article = read_article(matches[0]["url"], self.browser.cancelled)
+        return json.dumps({"untrusted_source": article, "title": matches[0]["title"],
+                           "note": "Trecho público limitado; não usa cookies nem lê áreas autenticadas."}, ensure_ascii=False)
+
+    def list_research_tasks(self):
+        import json
+
+        from assistant.storage.tasks import recent_tasks
+
+        self.runtime()
+        return json.dumps(recent_tasks(self.database_path), ensure_ascii=False)
+
+    def resume_research_task(self, task_id):
+        from assistant.core.research import research_manager
+
+        settings = self.runtime()
+        if not settings.research_enabled:
+            raise RuntimeError("As tarefas de pesquisa estão desativadas.")
+        identifier = research_manager(self.database_path).resume(settings, task_id)
+        return f"Nova tentativa explícita iniciada: {identifier}. Não é retomada de áudio; a pesquisa será refeita e pode gerar consumo AWS."
+
     def describe_result(self, result_id):
         return self.browser.describe_result(result_id)
 

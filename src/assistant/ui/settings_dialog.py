@@ -93,7 +93,9 @@ class SettingsDialog(QDialog):
         general.addRow("Abertura direta por nome ou apelido", applications)
         navigation_notice = QLabel(
             "A correlação usa uma janela separada do Chrome/Edge controlada pelo assistente. "
-            "Ela fecha ao sair do assistente. Comandos conhecidos continuam locais; "
+            "Ela fecha ao sair, mas seu perfil mantém os logins no disco. Entre nas contas nessa janela uma vez; "
+            "os sites ainda podem exigir novo login ou CAPTCHA. O perfil pessoal do Chrome não é importado. "
+            "Comandos conhecidos continuam locais; "
             "o histórico não autoriza repetir ações. Desativar não apaga registros existentes."
         )
         navigation_notice.setWordWrap(True)

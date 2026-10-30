@@ -100,6 +100,7 @@ class ResearchManager:
         self.store = TaskStore(path)
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="assistant-research")
         self.jobs = {}
+        self.restarts = {}
         self.lock = Lock()
 
     def submit(self, settings, topic, title, pages):
@@ -114,6 +115,21 @@ class ResearchManager:
             future = self.pool.submit(run_research, identifier, self.store, settings, cancelled)
             self.jobs[identifier] = (cancelled, future)
         return identifier
+
+    def resume(self, settings, identifier):
+        task = self.store.get(identifier)
+        with self.lock:
+            if task["id"] in self.restarts:
+                raise ValueError(f"Já existe uma nova tentativa dessa pesquisa: {self.restarts[task['id']]}. Consulte essa referência.")
+            running = self.jobs.get(task["id"])
+            if running and not running[1].done():
+                raise ValueError("Essa pesquisa ainda está em execução. Consulte seu estado.")
+        if task["status"] == "completed" or task["output_path"]:
+            raise ValueError("Essa pesquisa já tem um documento. Consulte o arquivo existente antes de pedir outra pesquisa.")
+        new_id = self.submit(settings, task["topic"], task["title"], task["pages"])
+        with self.lock:
+            self.restarts[task["id"]] = new_id
+        return new_id
 
     def cancel(self, identifier):
         with self.lock:

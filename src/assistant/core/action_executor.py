@@ -80,6 +80,10 @@ class ActionExecutor:
             if self.message_send_attempted:
                 raise RuntimeError("Um envio já foi tentado nesta tarefa. Confira o WhatsApp antes de um novo pedido.")
             description = self.backend.describe_whatsapp_message(action.arguments["draft_id"])
+        elif action.name == "resume_research_task":
+            description = ("Refazer a pesquisa interrompida em uma nova tarefa? "
+                           "Isso pode gerar novo consumo na AWS. A tarefa antiga e seus arquivos serão preservados.\n"
+                           f"Referência: {action.arguments['task_id']}")
         # High volume also requires explicit approval, regardless of the source of the action.
         sensitive = tool.confirmation or (
             action.name == "set_volume" and action.arguments["percent"] > 70

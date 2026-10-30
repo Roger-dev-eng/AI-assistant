@@ -31,6 +31,9 @@ class FakePage:
     def bring_to_front(self):
         pass
 
+    def title(self):
+        return "Página de teste"
+
     def locator(self, selector):
         return Mock()
 
@@ -153,6 +156,66 @@ def test_navigation_does_not_replace_whatsapp_conversation():
     session.context.new_page.assert_called_once()
     assert page.visits == []
     assert fresh.visits == ["https://github.com"]
+
+
+def test_persistent_profile_is_separate_and_reused_on_relaunch(tmp_path):
+    api = Mock()
+    context = api.chromium.launch_persistent_context.return_value
+    context.pages = []
+    session = NavigationSession(api)
+    with patch("assistant.tools.navigation.data_path", return_value=tmp_path / "usage.sqlite3"):
+        session.ensure_browser()
+        first = api.chromium.launch_persistent_context.call_args
+        session.browser.is_connected.return_value = False
+        session.ensure_browser()
+        second = api.chromium.launch_persistent_context.call_args
+    assert first.args == second.args == (str(tmp_path / "browser-profiles" / "chrome"),)
+    assert first.kwargs["accept_downloads"] is False
+    api.chromium.launch.assert_not_called()
+    assert (tmp_path / "browser-profiles" / "chrome").is_dir()
+
+
+def test_persistent_cookie_survives_context_close_without_real_login_or_network(tmp_path):
+    import time
+
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as api:
+        profile = str(tmp_path / "synthetic-profile")
+        context = api.chromium.launch_persistent_context(profile, headless=True)
+        try:
+            context.add_cookies([{"name": "synthetic-session", "value": "test-only", "domain": "example.org",
+                                  "path": "/", "secure": True, "expires": time.time() + 86400}])
+        finally:
+            context.close()
+        reopened = api.chromium.launch_persistent_context(profile, headless=True)
+        try:
+            assert any(cookie["name"] == "synthetic-session" and cookie["value"] == "test-only"
+                       for cookie in reopened.cookies("https://example.org"))
+        finally:
+            reopened.close()
+
+
+def test_context_does_not_launch_closed_browser_or_reuse_old_ids():
+    session = NavigationSession(Mock())
+    assert session.browser_context(Event())["tabs"] == []
+    session.playwright.chromium.launch_persistent_context.assert_not_called()
+    with pytest.raises(ValueError, match="indisponível"):
+        session.select_tab("a" * 32, Event())
+
+
+def test_explicit_tab_selection_updates_reference_and_go_back_preserves_identity():
+    session, page, _ = session_with_page("https://github.com")
+    second = FakePage("https://www.google.com/search?q=python")
+    second.go_back = Mock(side_effect=lambda **kwargs: setattr(second, "url", "https://www.google.com"))
+    session.pages["b" * 32] = second
+    context = session.browser_context(Event())
+    assert len(context["tabs"]) == 2
+    session.select_tab("b" * 32, Event())
+    state = session.go_back(Event())
+    assert state["tab_id"] == "b" * 32
+    assert state["url"] == "https://www.google.com"
+    assert page.visits == []
 
 
 def test_correlated_command_chain_with_real_chromium_and_offline_pages(tmp_path):

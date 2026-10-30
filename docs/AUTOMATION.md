@@ -36,7 +36,7 @@ A redação usa o modelo textual configurado na AWS, não a sessão de áudio So
 
 ## WhatsApp
 
-Nesta versão, a integração utiliza **WhatsApp Web** em uma janela Chrome/Edge controlada pelo assistente, com sessão separada do seu navegador pessoal. Diga **“Abra o WhatsApp”** e conecte pelo QR code. A sessão é temporária; poderá ser necessário reconectar ao reiniciar o aplicativo.
+Nesta versão, a integração utiliza **WhatsApp Web** em uma janela Chrome/Edge controlada pelo assistente, com sessão separada do seu navegador pessoal. Diga **“Abra o WhatsApp”** e conecte pelo QR code. A partir da 0.3.15 o perfil é persistente, permitindo manter o login; o próprio WhatsApp ainda pode exigir reconexão.
 
 Peça, por exemplo, **“Prepare uma mensagem para João Silva dizendo bom dia.”** O nome deve corresponder exatamente a um contato único. O assistente abre a conversa e preenche um rascunho sem enviar. Um rascunho existente é preservado.
 
@@ -49,3 +49,15 @@ O histórico de ferramentas omite o corpo das mensagens preparadas. Se a memóri
 Instalação por código: instale os requisitos de `requirements-windows.lock` e o projeto. A distribuição Windows inclui python-docx e lxml. Os testes novos usam controles simulados, páginas HTML sintéticas e arquivos temporários; não enviam mensagens reais nem chamam AWS.
 
 A validação real com o Word e o layout atual do WhatsApp permanece necessária. O fluxo de captura e reprodução de voz não foi alterado nesta implementação.
+
+## Perfil persistente e retomada (0.3.15)
+
+O navegador controlado usa um perfil próprio em `browser-profiles` dentro da pasta de dados do assistente. Entre nas suas contas manualmente nessa janela uma vez. Cookies e sessões permanecem no disco após sair ou atualizar. Não são copiados do perfil pessoal, exibidos no banco ou enviados como memória à IA. Sites ainda podem expirar sessões, impedir login automatizado ou pedir CAPTCHA; essas verificações não são contornadas. Perfil ocupado causa erro e não é apagado para resolver o bloqueio.
+
+A implementação usa [launch_persistent_context do Playwright](https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch-persistent-context) com diretório exclusivo. Limpar o histórico de comandos não remove logins.
+
+Exemplos: “volte”, “quais páginas estão abertas?”, “use essa página para fazer um relatório”, “retome a pesquisa energia solar”. A IA pode consultar abas e selecionar uma referência atual. A aba ativa é a última usada pelo assistente, não uma garantia de foco após você clicar manualmente em outra aba. Quando houver dúvida, informe título/site. IDs antigos não são reutilizados após reiniciar. A leitura da página atual usa trecho público sem cookies, não áreas autenticadas.
+
+Para pesquisas antigas, o assistente consulta títulos, estados e arquivos no SQLite. Pesquisa pronta retorna o arquivo existente; pesquisa ativa não é duplicada. Retomar uma pesquisa interrompida inicia outra tentativa desde a busca, após confirmação de possível consumo AWS. A tarefa original é preservada. Também há **Ver banco de dados > Tarefas > Retomar pesquisa selecionada**. Não se repetem envios ou cliques do histórico.
+
+Com a memória opcional desligada, ao esclarecer repita o pedido com o título: “retome a pesquisa energia solar”. Retomada de outras tarefas arbitrárias e restauração automática de abas após reiniciar não estão implementadas.

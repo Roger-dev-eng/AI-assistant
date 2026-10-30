@@ -57,6 +57,9 @@ class DatabaseDialog(QDialog):
         cancel_task = QPushButton("Cancelar tarefa selecionada")
         cancel_task.clicked.connect(self.cancel_task)
         row.addWidget(cancel_task)
+        resume_task = QPushButton("Retomar pesquisa selecionada…")
+        resume_task.clicked.connect(self.resume_task)
+        row.addWidget(resume_task)
         row.addStretch()
         close = QPushButton("Fechar")
         close.clicked.connect(self.accept)
@@ -110,6 +113,32 @@ class DatabaseDialog(QDialog):
         except Exception as exc:
             QMessageBox.warning(self, "Não foi possível apagar", str(exc))
             return
+        self.refresh()
+
+    def resume_task(self):
+        table = self.tables.get("Tarefas")
+        if table is None or self.tabs.currentWidget() is not table or table.currentRow() < 0:
+            QMessageBox.information(self, "Escolha uma pesquisa", "Selecione uma linha na aba Tarefas.")
+            return
+        if QMessageBox.question(
+            self, "Refazer pesquisa interrompida",
+            "Iniciar uma nova tentativa dessa pesquisa? Ela será refeita e pode gerar novo consumo AWS. "
+            "A tarefa antiga e seus arquivos serão preservados.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            from assistant.config import Settings
+            from assistant.core.research import research_manager
+
+            settings = Settings.from_env()
+            if not settings.research_enabled:
+                raise ValueError("As pesquisas estão desativadas nas configurações.")
+            identifier = research_manager(self.path).resume(settings, table.item(table.currentRow(), 0).text())
+            QMessageBox.information(self, "Nova tentativa iniciada", f"Referência: {identifier}. O documento ainda não está pronto.")
+        except Exception as exc:
+            QMessageBox.warning(self, "Não foi possível retomar", str(exc))
         self.refresh()
 
     def cancel_task(self):
