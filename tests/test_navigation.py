@@ -119,6 +119,42 @@ def test_missing_context_does_not_launch_browser_or_choose_arbitrary_results():
     session.playwright.chromium.launch.assert_not_called()
 
 
+def test_open_chrome_then_search_and_change_site_reuse_same_tab():
+    session, page, _ = session_with_page("https://www.google.com")
+    with patch("assistant.tools.navigation.verify_public_resolution"):
+        session.open_browser("C:/Chrome/chrome.exe", Event())
+        first = session.navigate_active("https://www.google.com/search?q=github", Event())
+        second = session.navigate_active("https://github.com", Event())
+    assert first["tab_id"] == second["tab_id"] == "tab"
+    session.context.new_page.assert_not_called()
+    assert page.visits == ["https://www.google.com/search?q=github", "https://github.com"]
+
+
+def test_closed_chrome_tab_is_replaced_and_blank_tab_is_reused():
+    session, page, _ = session_with_page("https://www.google.com")
+    page.closed = True
+    fresh = FakePage()
+    session.context.new_page.return_value = fresh
+    session.open_browser("C:/Chrome/chrome.exe", Event())
+    with patch("assistant.tools.navigation.verify_public_resolution"):
+        session.navigate_active("https://github.com", Event())
+    session.context.new_page.assert_called_once()
+    assert fresh.visits == ["https://github.com"]
+    assert page.visits == []
+
+
+def test_navigation_does_not_replace_whatsapp_conversation():
+    session, page, _ = session_with_page("https://web.whatsapp.com")
+    session.whatsapp_page = page
+    fresh = FakePage()
+    session.context.new_page.return_value = fresh
+    with patch("assistant.tools.navigation.verify_public_resolution"):
+        session.navigate_active("https://github.com", Event())
+    session.context.new_page.assert_called_once()
+    assert page.visits == []
+    assert fresh.visits == ["https://github.com"]
+
+
 def test_correlated_command_chain_with_real_chromium_and_offline_pages(tmp_path):
     from playwright.sync_api import sync_playwright
 

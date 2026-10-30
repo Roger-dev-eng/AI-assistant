@@ -2,6 +2,12 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Versão 0.3.14 — Chrome e pesquisas na mesma aba
+
+- A abertura de Chrome agora passa pelo proprietário Playwright e mantém uma aba ativa entre comandos. Navegação reutiliza uma aba da janela controlada mesmo quando o destino muda de site; abas de WhatsApp são excluídas.
+- Se a aba ou navegador fechou, abre uma substituição. O executável de Chrome cadastrado continua sendo utilizado. O vínculo em memória não depende do histórico SQLite estar habilitado.
+- Testes adicionados para abertura seguida de pesquisa e mudança de site, aba fechada, aba em branco e preservação de WhatsApp. Verificação local limitada a Ruff, sintaxe e diff; suíte no Actions, sem aguardar o resultado. Não houve acesso ao navegador pessoal nem chamada AWS.
+
 ## Versão 0.3.13 — controle de interface e pesquisa
 
 - Cadastro local de executáveis e apelidos, consulta e sugestões lexicais. Testes verificam persistência, ambiguidade, preservação ao limpar histórico, abertura sem modelo/inspeção e rejeição de executáveis ausentes ou scripts. Processos são simulados; nenhum executável de teste é iniciado.

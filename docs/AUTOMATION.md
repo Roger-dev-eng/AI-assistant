@@ -12,6 +12,8 @@ A ferramenta de consulta também ordena sugestões com vetores locais de palavra
 
 O cadastro aparece em **Ver banco de dados > Aplicativos**. Removê-lo não desinstala o programa, e apagar o histórico não remove cadastros. Cadastrar um aplicativo permite abri-lo e solicitar fechamento normal com confirmação; não cria automaticamente suporte a todos os seus controles internos. A inspeção interna permanece limitada aos controles suportados descritos abaixo.
 
+A partir da **0.3.14**, abrir o Chrome usa o executável cadastrado ou encontrado pelo Windows para criar/ativar uma janela controlada pelo assistente. As pesquisas e a abertura de sites reutilizam uma aba disponível dessa janela, inclusive ao mudar de site. Se a aba foi fechada, cria outra; se o navegador foi fechado, reabre. Uma aba de WhatsApp Web é preservada. O vínculo permanece na sessão mesmo sem salvar histórico; com histórico habilitado, a referência também é atualizada no SQLite. Não há conexão às abas de um Chrome pessoal aberto por fora do assistente, nem importação de perfil pessoal.
+
 Se cadastrar o WhatsApp desktop, “Abra o WhatsApp” abre esse executável. As ferramentas de mensagens desta versão continuam usando a sessão separada do WhatsApp Web.
 
 ## Aplicativos

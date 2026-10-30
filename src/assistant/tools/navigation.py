@@ -27,6 +27,8 @@ class NavigationSession:
         self.selected = {}
         self.whatsapp_page = None
         self.whatsapp = None
+        self.active_tab = None
+        self.executable = None
 
     def ensure_browser(self):
         if self.browser is not None and self.browser.is_connected():
@@ -34,9 +36,10 @@ class NavigationSession:
         self.pages.clear()
         self.selected.clear()
         self.run_id = uuid4().hex
-        for channel in ("chrome", "msedge"):
+        for channel in ((None,) if self.executable else ("chrome", "msedge")):
             try:
-                self.browser = self.playwright.chromium.launch(channel=channel, headless=False, timeout=10000)
+                launch = {"executable_path": self.executable} if self.executable else {"channel": channel}
+                self.browser = self.playwright.chromium.launch(**launch, headless=False, timeout=10000)
                 break
             except Exception:
                 self.browser = None
@@ -62,6 +65,50 @@ class NavigationSession:
 
         self.context.route("**/*", guard)
         self.context.on("page", lambda page: page.on("download", lambda item: item.cancel()))
+
+    def available_tab(self):
+        """Reuse only tabs in our browser context, never an unrelated personal profile."""
+        context_pages = self.context.pages
+        if isinstance(context_pages, (list, tuple)):
+            for page in context_pages:
+                if not any(existing is page for existing in self.pages.values()):
+                    self.pages[uuid4().hex] = page
+        ordered = sorted(self.pages.items(), key=lambda item: item[0] != self.active_tab)
+        for identifier, page in ordered:
+            try:
+                if page is self.whatsapp_page or page.is_closed():
+                    continue
+                url = page.evaluate("() => location.href")
+                if url != "about:blank":
+                    public_https_url(url)
+                    if urlsplit(url).hostname == "web.whatsapp.com":
+                        continue
+                self.active_tab = identifier
+                return identifier, page
+            except Exception:
+                continue
+        return None, None
+
+    def open_browser(self, executable, cancelled):
+        if cancelled.is_set():
+            raise InterruptedError("Abertura interrompida.")
+        self.executable = executable
+        self.ensure_browser()
+        identifier, page = self.available_tab()
+        if page is None:
+            page = self.context.new_page()
+            identifier = uuid4().hex
+            self.pages[identifier] = page
+        self.active_tab = identifier
+        page.bring_to_front()
+        return "Chrome aberto ou ativado. A aba será reutilizada nos próximos comandos de navegação."
+
+    def navigate_active(self, url, cancelled):
+        self.ensure_browser()
+        identifier, page = self.available_tab()
+        saved = ({"run_id": self.run_id, "tab_id": identifier,
+                  "site": site_of(page.url) or "external"} if page is not None else None)
+        return self.navigate(url, saved, cancelled, reuse_source=True)
 
     def find_page(self, saved, site):
         if not saved or saved["run_id"] != self.run_id:
@@ -112,6 +159,7 @@ class NavigationSession:
         if (site_of(page.url) or "external") != site:
             raise RuntimeError("A página mudou de site. Não foi possível confirmar a navegação.")
         page.bring_to_front()
+        self.active_tab = tab_id
         return self.state(tab_id, page)
 
     def describe_position(self, saved, position, cancelled):
@@ -211,6 +259,7 @@ class NavigationSession:
 
 class NavigationBroker:
     def __init__(self):
+        self.browser_requested = False
         self.requests = queue.Queue(maxsize=16)
         self.thread = Thread(target=self.run, name="assistant-browser", daemon=True)
         self.thread.start()
@@ -255,7 +304,10 @@ class NavigationBroker:
         deadline = time.monotonic() + 45
         while True:
             try:
-                return future.result(timeout=0.1)
+                result = future.result(timeout=0.1)
+                if method == "open_browser":
+                    self.browser_requested = True
+                return result
             except TimeoutError as exc:
                 if future.done():
                     raise
@@ -283,6 +335,11 @@ def navigation_broker():
         if _broker is None or not _broker.thread.is_alive():
             _broker = NavigationBroker()
         return _broker
+
+
+def browser_requested():
+    with _lock:
+        return _broker is not None and _broker.thread.is_alive() and _broker.browser_requested
 
 
 def shutdown_navigation():

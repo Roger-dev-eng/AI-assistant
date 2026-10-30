@@ -41,6 +41,7 @@ O projeto também busca manter controle sobre as ações executadas, o envio de 
 
 ## Funcionalidades
 
+- “Abra o Chrome” mantém uma janela controlada pelo assistente; pesquisas seguintes reutilizam uma aba aberta dessa janela, criando outra somente quando não há uma aba utilizável. Abas pessoais externas e conversas do WhatsApp são preservadas.
 - Cadastro de aplicativos e nomes alternativos no SQLite para abertura direta por voz, sem analisar a tela. Vetores locais de palavras auxiliam sugestões; nomes e apelidos exatos definem a execução.
 - Controle de campos e botões acessíveis do Word, Bloco de Notas e Calculadora, com confirmação e nova inspeção após alterações.
 - Pesquisa de fontes públicas e geração de documentos Word na Área de Trabalho, com tarefas acompanhadas no banco de dados.

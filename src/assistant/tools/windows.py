@@ -168,6 +168,10 @@ class WindowsTools:
         path = self._executable(app)
         if not path.is_file():
             raise RuntimeError(f"Application not found: {app}")
+        if path.name.lower() == "chrome.exe":
+            from assistant.tools.navigation import navigation_broker
+
+            return navigation_broker().call("open_browser", str(path), self.browser.cancelled)
         subprocess.Popen([str(path)], shell=False)
         return f"Opened {app}."
 
@@ -206,12 +210,12 @@ class WindowsTools:
         return f"Requested close for {count} window(s); save dialogs may remain."
 
     def open_site(self, url):
-        if self.activity is not None:
-            from assistant.tools.navigation import navigation_broker, site_of
+        from assistant.tools.navigation import browser_requested, navigation_broker
 
-            saved = self.activity.navigation(site_of(url))
-            state = navigation_broker().call("navigate", url, saved, self.browser.cancelled)
-            self.activity.remember_navigation(state)
+        if self.activity is not None or browser_requested():
+            state = navigation_broker().call("navigate_active", url, self.browser.cancelled)
+            if self.activity is not None:
+                self.activity.remember_navigation(state)
             return f"Site aberto na aba do assistente: {url}"
         if not webbrowser.open(url):
             raise RuntimeError("Unable to open the default browser.")
