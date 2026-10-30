@@ -38,13 +38,26 @@ permissão e disponibilidade regional também podem restringir o acesso.
 
 **Gravar comando · Sonic**, na aba AWS, inicia uma captura; uma pausa de aproximadamente 1,75 segundo
 encerra automaticamente no modo Sonic. O tempo é ajustável nas configurações.
-Para ativação por palavra, clique uma vez em **Ativar escuta** e diga
-“Assistente, abra o Chrome”. A detecção de Assistente/Assistant acontece localmente
-com o Whisper já configurado. O áudio do comando, incluindo a palavra de ativação,
-segue para a AWS depois da captura. Antes da ativação, nada é enviado à AWS.
+Para ativação por palavra, clique uma vez em **Ativar escuta · Sonic**:
 
-Cada ativação atende uma interação e depois desliga o microfone. A escuta não
-retoma sozinha após a resposta. Ações sensíveis continuam exigindo confirmação.
+1. Diga **“Assistente”**, sozinha, e aguarde o sinal curto.
+2. Após o sinal, diga o comando e faça uma pausa para terminar a gravação.
+3. O Sonic interpreta, executa e responde. Durante essa etapa, o microfone fica desligado.
+4. Depois da resposta, o aplicativo volta a aguardar **“Assistente”** automaticamente.
+
+A detecção usa Vosk offline, restrito à palavra em português, com modelo incluído
+no instalador desde a 0.3.9. Não precisa configurar Whisper nem Piper. O áudio da
+espera é descartado; apenas a nova gravação feita depois do sinal segue para AWS.
+A escuta não tem o limite de 120 segundos do modo local e funciona na bandeja.
+Não diga a palavra e o comando em uma frase contínua: aguarde o sinal para não
+perder o começo do comando. A opção de idioma do Sonic vale para o comando;
+a palavra de ativação deste modelo é **Assistente**.
+
+**Parar escuta · Sonic**, **Interromper**, Esc ou Sair interrompem o ciclo e impedem
+o retorno automático. O microfone não liga sozinho ao iniciar o aplicativo.
+Se o detector/modelo falhar, a escuta desativa e mostra o erro. Uma falha depois
+da ativação pode voltar à escuta, mas nunca repete automaticamente o comando.
+Ações sensíveis continuam exigindo confirmação.
 No modo Sonic, comandos comuns podem executar sem uma tela de revisão da
 transcrição. **Parar** cancela captura, transmissão e reprodução pendentes.
 
@@ -67,12 +80,22 @@ executam fora do loop de rede para não interromper esse fluxo. O envio termina
 na conclusão, no cancelamento ou no limite de duração/custo da sessão.
 
 Isso acrescenta espera; ainda não oferece conversa contínua nem interrupção da
-resposta pela própria voz. A ativação por Whisper e
+resposta pela própria voz. A ativação offline por palavra e
 o detector de silêncio por volume são experimentais: ruído e pausas afetam o
 resultado. Ao atingir o limite sem pausa, o comando é rejeitado para evitar
 executar uma frase cortada. Ajuste a duração máxima e o silêncio conforme a fala.
 
 ## Custos, dados e limites
+
+A espera por **Assistente** não cria uma sessão AWS. O modelo Vosk é carregado
+de uma pasta local explícita, sem download em tempo de execução. A fila de áudio
+é limitada em memória, sem gravação em disco. Enquanto o Sonic fala, o detector
+fica suspenso para não ouvir a própria resposta.
+
+Para desenvolvimento: instale `pip install -e ".[wake]"` e rode
+`python scripts/prepare_wake_model.py`. O script obtém o modelo oficial com hash
+fixado; `ASSISTANT_WAKE_MODEL_PATH` permite apontar para uma cópia local completa.
+O build baixa e inclui esse modelo automaticamente, junto com sua licença Apache-2.0.
 
 As sessões compartilham o limite mensal e diário com os comandos de texto.
 Cada sessão reserva US$0,25 antes de conectar; o consumo informado pelo Sonic

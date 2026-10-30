@@ -18,6 +18,7 @@ def write_diagnostics(path, settings):
         "faster_whisper",
         "piper",
         "sounddevice",
+        "vosk",
         "pywinauto",
         "pycaw.pycaw",
         "aws_sdk_bedrock_runtime",
@@ -34,6 +35,14 @@ def write_diagnostics(path, settings):
         from assistant.updates import updater_executable
 
         checks["native_updater"] = "ok" if updater_executable().is_file() else "missing"
+        try:
+            from assistant.audio.wake_trigger import make_recognizer
+
+            recognizer = make_recognizer()
+            recognizer.AcceptWaveform(b"\0\0" * 1600)
+            checks["wake_keyword_model"] = "ok"
+        except Exception as exc:
+            checks["wake_keyword_model"] = str(exc)
     result = Orchestrator(
         ActionExecutor(WindowsTools(), lambda _: False, dry_run=True), provider
     ).run("Open Chrome and search Python on YouTube")

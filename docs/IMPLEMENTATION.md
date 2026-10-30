@@ -67,7 +67,21 @@ O teste externo está bloqueado pela permissão IAM do modelo; consulte
 6. **Implementado — distribuição:** script PyInstaller Windows/Python 3.12 com Chromium
    headless e dependências locais, instalador Inno Setup por usuário com desinstalação,
    atalhos e startup opcional; configuração inicial em PySide6 e diagnóstico offline.
-   Modelos de voz e credenciais não entram no pacote. Binários locais sem assinatura.
+   Modelos Whisper/Piper e credenciais não entram no pacote. O modelo de ativação
+   Vosk acompanha o instalador a partir da 0.3.9. Binários locais sem assinatura.
+
+### Ativação do Sonic na 0.3.9
+
+O Sonic usa uma porta de ativação offline separada do Whisper: Vosk com gramática
+restrita a **Assistente** e descarte de palavras desconhecidas. O usuário fala a
+palavra, aguarda o sinal e então dita o comando. A captura começa depois do sinal,
+termina por silêncio e só então cria a interação AWS. Durante ferramentas e
+reprodução, o microfone fica desligado. Ao concluir, um novo ciclo aguarda a palavra,
+sem repetir a ação anterior. Parar, Esc e Sair impedem o retorno automático.
+Falhas do detector desativam o ciclo; falhas após ativação podem rearmar a espera.
+O modelo português é incluído no build com ZIP/SHA-256 fixos e licença Apache-2.0.
+A ativação do modo local descrita acima continua com Whisper e duração limitada.
+Qualidade real da palavra no microfone do usuário ainda depende de validação prática.
 
 ## Avaliação de aceitação
 

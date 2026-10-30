@@ -2,6 +2,22 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Versão 0.3.9 — ativação offline contínua para Sonic
+
+- A espera por Assistente usa Vosk com vocabulário restrito e não cria o provedor
+  Sonic, não chama AWS e não depende de Whisper/Piper.
+- Após a palavra, a captura começa depois do sinal, termina por silêncio, processa
+  um comando e reproduz a resposta antes de retornar à espera. A escuta só começa
+  por escolha explícita; parada/cancelamento e saída impedem o rearme.
+- Novos testes para o Actions cobrem rejeição de palavras desconhecidas/baixa
+  confiança, cancelamento em silêncio, overflow, modelo ausente, ausência de chamadas
+  AWS antes do gatilho, retorno após interação e parada antes do rearme agendado.
+- O diagnóstico do executável empacotado carrega o modelo real e o reconhecedor,
+  alimenta silêncio sintético e verifica o vocabulário de Assistente, sem microfone
+  ou AWS. Isso valida empacotamento, não a acurácia em fala real.
+- A suíte não foi executada localmente. Resultado do Actions e qualidade real no
+  microfone do usuário permanecem pendentes nesta alteração.
+
 ## Correção 0.3.8 — inicialização da coleta no Actions
 
 - Os workflows da 0.3.7 foram rejeitados na validação: `runner.temp` não é

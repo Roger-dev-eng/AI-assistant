@@ -170,7 +170,8 @@ class MainWindow(QMainWindow):
         self.sonic_record_button = QPushButton("Gravar comando · Sonic")
         self.sonic_wake_button = QPushButton("Ativar escuta · Sonic")
         self.sonic_wake_button.setToolTip(
-            "A palavra Assistente é detectada pelo Whisper local; o comando segue para o Sonic."
+            "Aguarda Assistente no computador, sem AWS. Após o sinal, diga o comando. "
+            "O Sonic responde e a escuta volta automaticamente. Não requer Whisper ou Piper."
         )
         sonic_row.addWidget(self.sonic_record_button)
         sonic_row.addWidget(self.sonic_wake_button)
@@ -592,7 +593,10 @@ class MainWindow(QMainWindow):
     @Slot()
     def stop_task(self):
         self.queued_speech = ""
+        self.sonic_wake = False
         if self.worker is None:
+            self.set_busy(False)
+            self.state_label.setText("Escuta desativada · microfone desligado")
             return
         self.worker.cancelled.set()
         self.wake_button.setEnabled(False)
@@ -610,9 +614,13 @@ class MainWindow(QMainWindow):
     def task_finished(self):
         worker = self.worker
         kind = self.worker_kind
+        resume_wake = (
+            self.sonic_wake and kind == "sonic" and worker is not None
+            and not worker.cancelled.is_set() and worker.rearm_wake and not self.exiting
+        )
         self.worker = None
         self.worker_kind = None
-        self.sonic_wake = False
+        self.sonic_wake = bool(resume_wake)
         self.set_microphone_active(False)
         self.record_button.setText("Gravar comando")
         if self.confirmation_box is not None:
@@ -625,10 +633,22 @@ class MainWindow(QMainWindow):
             self.close()
         else:
             self.command.setFocus()
-            if kind == "task" and self.queued_speech:
+            if resume_wake:
+                self.state_label.setText("Retomando escuta de Assistente · sem conexão AWS…")
+                self.set_busy(True)
+                QTimer.singleShot(500, self.resume_sonic_wake)
+            elif kind == "task" and self.queued_speech:
                 text = self.queued_speech
                 self.queued_speech = ""
                 self.start_audio("speak", text)
+
+    @Slot()
+    def resume_sonic_wake(self):
+        if (
+            self.sonic_wake and self.worker is None and not self.exiting
+            and self.update_dialog is None and self.cloud.isChecked()
+        ):
+            self.start_sonic(wake=True)
 
     @Slot()
     def restore_window(self):
@@ -651,6 +671,7 @@ class MainWindow(QMainWindow):
         mark("window.exit.request", worker=self.worker is not None,
              dialog=self.update_dialog is not None)
         self.exiting = True
+        self.sonic_wake = False
         if self.update_dialog is not None:
             self.update_dialog.reject()
             return

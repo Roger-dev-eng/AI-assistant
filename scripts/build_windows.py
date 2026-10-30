@@ -1,4 +1,4 @@
-"""Build on Windows/Python 3.12; models and user credentials are never included."""
+"""Build on Windows/Python 3.12; only the fixed keyword model is bundled."""
 
 import os
 import subprocess
@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from build_updater import build_updater
+from prepare_wake_model import prepare_model
 
 
 def main():
@@ -13,6 +14,7 @@ def main():
         raise SystemExit("Build with Python 3.12 on Windows.")
     root = Path(__file__).resolve().parents[1]
     updater = build_updater()
+    wake_model = prepare_model()
     cache = Path(os.environ["LOCALAPPDATA"]) / "ms-playwright"
     browsers = [
         path
@@ -42,6 +44,8 @@ def main():
         "assistant",
         "--add-binary",
         f"{updater}:assistant",
+        "--add-data",
+        f"{wake_model}:wake-model",
         "--hidden-import",
         "PySide6.QtWidgets",
     ]
@@ -54,6 +58,7 @@ def main():
         "tokenizers",
         "sounddevice",
         "_sounddevice_data",
+        "vosk",
         "pywinauto",
         "pycaw",
         "comtypes",
@@ -74,6 +79,7 @@ def main():
         "onnxruntime",
         "ctranslate2",
         "sounddevice",
+        "vosk",
         "PySide6",
         "playwright",
         "aws-sdk-bedrock-runtime",

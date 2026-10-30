@@ -7,11 +7,11 @@ from PySide6.QtCore import Signal
 
 from assistant.ai.sonic_provider import SonicProvider
 from assistant.audio.recording import check_cancelled, record_microphone
-from assistant.audio.speech_to_text import SpeechToText
 from assistant.audio.text_to_speech import play_wav
-from assistant.audio.wake_word import listen_for_command
+from assistant.audio.wake_trigger import activation_tone, wait_for_keyword
 from assistant.cloud.usage_tracker import UsageTracker
 from assistant.core.action_executor import ActionExecutor
+from assistant.runtime_log import mark
 from assistant.storage.memory import ConversationMemory
 from assistant.tools.windows import WindowsTools, automation_context
 from assistant.ui.worker import TaskWorker
@@ -39,6 +39,7 @@ class SonicWorker(TaskWorker):
         self.language, self.wake = language, wake
         self.sonic_factory = provider_factory
         self.recording_finished = Event()
+        self.rearm_wake = False
 
     def run(self):
         tracker, memory, provider = None, None, None
@@ -47,26 +48,21 @@ class SonicWorker(TaskWorker):
                 raise RuntimeError("Marque Permitir Bedrock (AWS) antes de usar Nova 2 Sonic.")
             if self.wake:
                 self.phase.emit("Preparando ativação local… microfone desligado.")
-                audio = listen_for_command(
-                    SpeechToText(self.settings.whisper_model_path),
-                    self.language,
-                    self.cancelled,
-                    self.recording_finished,
-                    self.settings,
-                    self.phase.emit,
-                    return_audio=True,
-                )
-            else:
-                audio = record_microphone(
-                    self.cancelled,
-                    self.recording_finished,
-                    self.settings.recording_seconds,
-                    on_recording=lambda: self.phase.emit(
-                        "Microfone ativo · fale; a captura termina após a pausa."
-                    ),
-                    silence_seconds=self.settings.silence_seconds,
-                )
+                wait_for_keyword(self.cancelled, self.phase.emit)
+                self.rearm_wake = True
+                self.phase.emit("Ativação detectada · aguarde o sinal · microfone desligado.")
+                activation_tone(self.cancelled)
+            audio = record_microphone(
+                self.cancelled,
+                self.recording_finished,
+                self.settings.recording_seconds,
+                on_recording=lambda: self.phase.emit(
+                    "Microfone ativo · fale; a captura termina após a pausa."
+                ),
+                silence_seconds=self.settings.silence_seconds,
+            )
             check_cancelled(self.cancelled)
+            mark("sonic.command.captured")
             self.phase.emit("Preparando conexão com o Nova 2 Sonic · microfone desligado.")
             import numpy as np
 
@@ -94,7 +90,9 @@ class SonicWorker(TaskWorker):
                     on_phase=self.phase.emit,
                     on_action=self.action_done.emit,
                 )
+                mark("sonic.turn.begin")
                 response = provider.run(pcm)
+                mark("sonic.turn.end")
             check_cancelled(self.cancelled)
             if response.text:
                 self.result.emit(response.text)
@@ -109,6 +107,7 @@ class SonicWorker(TaskWorker):
                     wav.setframerate(24000)
                     wav.writeframes(response.audio)
                 play_wav(output.getvalue(), self.cancelled)
+                mark("sonic.playback.end")
         except InterruptedError:
             report = provider.action_report() if isinstance(provider, SonicProvider) else ""
             self.result.emit("Interação de voz interrompida. " + report)

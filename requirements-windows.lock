@@ -10,7 +10,9 @@ aws-sdk-signers==0.4.0
 awscrt==0.32.2
 boto3==1.43.122
 botocore==1.43.122
+certifi==2026.10.23
 cffi==2.1.1
+charset-normalizer==3.5.2
 click==8.5.0
 colorama==0.4.6
 comtypes==1.4.17
@@ -63,6 +65,7 @@ pywin32-ctypes==0.2.3
 pywinauto==0.6.9
 pyyaml==6.0.3
 referencing==0.37.0
+requests==2.34.2
 rpds-py==2026.9.1
 ruff==0.17.3
 s3transfer==0.19.3
@@ -75,9 +78,12 @@ smithy-core==0.9.0
 smithy-http==0.6.0
 smithy-json==0.3.0
 sounddevice==0.5.6
+srt==3.5.3
 tokenizers==0.23.3
 tqdm==4.70.1
 truststore==0.10.5
 typing-extensions==4.16.0
 urllib3==2.8.0
+vosk==0.3.45
+websockets==17.3
 yarl==1.25.1

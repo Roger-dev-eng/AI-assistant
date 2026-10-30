@@ -50,7 +50,7 @@ O projeto também busca manter controle sobre as ações executadas, o envio de 
 - Gravação e transcrição local de comandos com faster-whisper.
 - Leitura de textos e respostas com Piper.
 - Interação por voz com Nova 2 Sonic e encerramento da captura após uma pausa.
-- Ativação local experimental pelas palavras **Assistente** e **Assistant**.
+- Ativação offline por **Assistente** para o Sonic, com retorno automático à escuta. O modo local mantém Assistente/Assistant com Whisper.
 - Memória opcional entre tarefas, com retenção configurável.
 - Registro local de consumo estimado e limites de uso da AWS.
 - Modo de simulação de ações e interrupção de tarefas.
@@ -114,7 +114,7 @@ Utilizam SQLite para registrar consumo estimado e, quando habilitada, guardar a 
 3. Execute o instalador e abra o **Assistente de IA**.
 4. Acesse **Aplicativo → Configurações** para ajustar AWS, voz e preferências.
 
-O instalador é por usuário e não exige Python instalado. Modelos de voz locais e credenciais AWS são configurados separadamente. O microfone começa desligado.
+O instalador é por usuário e não exige Python instalado. O detector de **Assistente** já vem incluído; modelos Whisper/Piper e credenciais AWS são configurados separadamente. O microfone começa desligado.
 
 ## Como executar localmente
 
@@ -190,7 +190,9 @@ No modo local, a transcrição fica no campo de comando para revisão antes de c
 
 Abra a aba **AWS**, habilite **Permitir Bedrock (AWS)** e use **Gravar comando · Sonic**. O Sonic recebe o áudio do comando, interpreta a solicitação e gera a resposta falada. Comandos comuns podem executar sem revisão prévia da transcrição; as confirmações de ações sensíveis continuam sendo exigidas. Whisper, Piper e leitura local ficam na aba **Uso local**.
 
-A captura termina após uma pausa configurável. Para ativação por palavra, clique em **Ativar escuta** e diga, por exemplo, **“Assistente, abra o Chrome”**. A detecção da palavra acontece localmente e requer o modelo Whisper configurado.
+A captura termina após uma pausa configurável. Para ativação por palavra, clique em **Ativar escuta · Sonic**, diga **“Assistente”**, aguarde o sinal e fale **“abra o Chrome”**. O detector Vosk funciona no computador e já acompanha o instalador, sem exigir Whisper ou Piper. Durante a espera, não há conexão AWS nem envio de áudio. Após a resposta, a escuta volta automaticamente, inclusive com a janela na bandeja. **Parar escuta · Sonic** ou **Interromper** desativa o ciclo.
+
+No código-fonte, instale também `pip install -e ".[wake]"` e execute `python scripts/prepare_wake_model.py` uma vez para obter o modelo de ativação verificado por SHA-256. O aplicativo não o baixa durante a escuta.
 
 Consulte o [guia de voz AWS](docs/VOICE_AWS.md) para configurar o modelo, a voz e a permissão específica do Sonic.
 
@@ -250,7 +252,7 @@ O projeto também inclui avaliação de comandos em `scripts/evaluate_model.py` 
 - O áudio capturado não é salvo pelo aplicativo. No modo Sonic, o áudio do comando é enviado à AWS; no modo local, o texto pode ser enviado ao Bedrock ao executar uma tarefa com a nuvem habilitada.
 - A IA utiliza ferramentas permitidas com argumentos validados. Comandos de shell gerados pelo modelo não são executados.
 - Os limites mensais e diários são estimativas do aplicativo e não garantem um teto de faturamento na AWS.
-- A ativação por palavra e a detecção de silêncio são experimentais. Cada ativação atende um comando; a escuta não reinicia automaticamente após a resposta.
+- A detecção de palavra e de silêncio é experimental e depende do microfone e do ruído. No Sonic, cada ativação atende um comando e volta a aguardar **Assistente**. A ativação do modo local ainda termina após um comando.
 - O modo Sonic captura a frase antes de enviá-la e reproduz a resposta após a interação. Conversa contínua e interrupção da resposta pela voz ainda não estão disponíveis.
 - Buscas podem falhar por mudanças de layout, consentimento ou CAPTCHA. O aplicativo não tenta contornar esses bloqueios.
 - O instalador não possui assinatura digital de publicador configurada. Políticas de execução do Windows podem impedir a abertura ou atualização.
@@ -266,6 +268,7 @@ O projeto também inclui avaliação de comandos em `scripts/evaluate_model.py` 
 | **Boto3 e AWS SDK Bedrock Runtime** | Integrações de texto e streaming de voz |
 | **Amazon Nova 2 Sonic** | Interpretação de áudio e resposta falada na AWS |
 | **faster-whisper** | Transcrição local e apoio à ativação por palavra |
+| **Vosk** | Detecção offline de Assistente para ativar o Sonic |
 | **Piper** | Síntese de voz local |
 | **sounddevice e NumPy** | Captura e processamento de áudio |
 | **Playwright / Chromium** | Leitura de resultados de buscas |

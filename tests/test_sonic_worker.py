@@ -23,17 +23,47 @@ def test_sonic_worker_captures_and_dispatches_audio(tmp_path, wake):
     errors, results = [], []
     worker.failed.connect(errors.append)
     worker.result.connect(results.append)
-    capture = "listen_for_command" if wake else "record_microphone"
-    with patch(f"assistant.ui.sonic_worker.{capture}",
-               return_value=np.ones(1600, dtype="float32") * 0.1) as recorder:
+    with (
+        patch("assistant.ui.sonic_worker.wait_for_keyword") as gate,
+        patch("assistant.ui.sonic_worker.activation_tone") as tone,
+        patch("assistant.ui.sonic_worker.record_microphone",
+              return_value=np.ones(1600, dtype="float32") * 0.1) as recorder,
+    ):
         worker.run()
     assert not errors
     assert results == ["Olá!"]
     args = recorder.call_args.args
-    assert args[3 if wake else 1] is worker.recording_finished
+    assert args[1] is worker.recording_finished
+    assert gate.call_count == int(wake)
+    assert tone.call_count == int(wake)
+    assert worker.rearm_wake == wake
     assert not worker.recording_finished.is_set()
     provider.run.assert_called_once()
     assert len(provider.run.call_args.args[0]) == 3200
+
+
+def test_waiting_for_keyword_never_creates_cloud_provider_or_records_command(tmp_path):
+    factory = Mock()
+    worker = SonicWorker(
+        replace(Settings(), cloud_enabled=True), tmp_path / "usage.sqlite3",
+        wake=True, provider_factory=factory,
+    )
+
+    def cancel_at_gate(*args):
+        factory.assert_not_called()
+        worker.cancelled.set()
+        raise InterruptedError()
+
+    with (
+        patch("assistant.ui.sonic_worker.wait_for_keyword", side_effect=cancel_at_gate),
+        patch("assistant.ui.sonic_worker.record_microphone") as record,
+        patch("assistant.ui.sonic_worker.activation_tone") as tone,
+    ):
+        worker.run()
+    factory.assert_not_called()
+    record.assert_not_called()
+    tone.assert_not_called()
+    assert not worker.rearm_wake
 
 
 def test_timeout_after_action_has_reason_and_confirmed_action(tmp_path):

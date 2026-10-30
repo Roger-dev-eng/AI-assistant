@@ -1,5 +1,6 @@
 import os
 import time
+from threading import Event
 from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -237,6 +238,46 @@ def test_sonic_result_does_not_queue_piper(make_window):
     window.worker_kind = "sonic"
     window.show_result("Resposta já falada pelo Sonic")
     assert not window.queued_speech
+
+
+@pytest.mark.parametrize("stop_before_resume", [False, True])
+def test_sonic_rearms_only_after_turn_and_stop_cancels_pending_restart(make_window, stop_before_resume):
+    window = make_window()
+    window.cloud.setChecked(True)
+    window.sonic_wake = True
+    worker = Mock(cancelled=Event(), rearm_wake=True)
+    window.worker, window.worker_kind = worker, "sonic"
+    with (
+        patch("assistant.ui.main_window.QTimer.singleShot") as timer,
+        patch.object(window, "start_sonic") as start,
+    ):
+        window.task_finished()
+        start.assert_not_called()
+        assert window.sonic_wake
+        timer.assert_called_once()
+        if stop_before_resume:
+            window.stop_task()
+        timer.call_args.args[1]()
+        if stop_before_resume:
+            start.assert_not_called()
+            assert not window.sonic_wake
+        else:
+            start.assert_called_once_with(wake=True)
+    window.stop_task()
+
+
+@pytest.mark.parametrize("cancelled,rearm", [(True, True), (False, False)])
+def test_sonic_cancel_or_detector_failure_does_not_restart(make_window, cancelled, rearm):
+    window = make_window()
+    worker = Mock(cancelled=Event(), rearm_wake=rearm)
+    if cancelled:
+        worker.cancelled.set()
+    window.sonic_wake = True
+    window.worker, window.worker_kind = worker, "sonic"
+    with patch("assistant.ui.main_window.QTimer.singleShot") as timer:
+        window.task_finished()
+    timer.assert_not_called()
+    assert not window.sonic_wake
 
 
 def test_update_dialog_downloads_then_hands_off_after_worker_finishes(app, tmp_path):
