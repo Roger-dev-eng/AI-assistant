@@ -1,5 +1,7 @@
 import asyncio
+import base64
 import json
+import time
 from dataclasses import replace
 from threading import Event
 from unittest.mock import AsyncMock, Mock
@@ -299,3 +301,67 @@ def test_short_pause_does_not_cut_following_speech():
     assert not endpoint.feed(np.zeros(8000, dtype="float32"))
     assert not endpoint.feed(np.ones(3200, dtype="float32") * 0.1)
     assert not endpoint.feed(np.zeros(8000, dtype="float32"))
+
+
+def test_sonic_keeps_audio_open_and_sends_silence_until_delayed_response(tmp_path, monkeypatch):
+    monkeypatch.setattr("assistant.ai.sonic_provider.AUDIO_CHUNK_SECONDS", 0.001)
+    events = text_events("USER", "Olá", "u") + text_events("ASSISTANT", "Olá!", "a")
+    events += [usage_event(), {"completionEnd": {"stopReason": "END_TURN"}}]
+    provider, stream, client, tracker, backend = make_provider(tmp_path, events)
+    original = stream.await_output
+
+    async def delayed_output():
+        _, output = await original()
+
+        async def iterator():
+            async with asyncio.timeout(3):
+                # Longer than the former finite clip + two-second silence buffer.
+                while len([e for e in stream.sent if "audioInput" in e]) < 70:
+                    await asyncio.sleep(0.001)
+            audio_name = next(e["contentStart"]["contentName"] for e in stream.sent
+                              if e.get("contentStart", {}).get("type") == "AUDIO")
+            assert not any(e.get("contentEnd", {}).get("contentName") == audio_name
+                           for e in stream.sent)
+            chunks = [base64.b64decode(e["audioInput"]["content"])
+                      for e in stream.sent if "audioInput" in e]
+            assert chunks[0].startswith(b"\x01\x00")
+            assert all(chunk == bytes(1024) for chunk in chunks[1:])
+            async for event in output:
+                yield event
+
+        return None, iterator()
+
+    stream.await_output = delayed_output
+    try:
+        assert provider.run(b"\x01\x00").text == "Olá!"
+        assert stream.closed and client.closed
+        assert any("sessionEnd" in e for e in stream.sent)
+    finally:
+        tracker.close()
+
+
+def test_tool_wait_does_not_block_audio_publisher(tmp_path, monkeypatch):
+    monkeypatch.setattr("assistant.ai.sonic_provider.AUDIO_CHUNK_SECONDS", 0.001)
+    events = text_events("USER", "Abra o Chrome", "u")
+    events += [
+        {"toolUse": {"contentId": "t", "toolUseId": "1", "toolName": "open_app",
+                     "content": '{"app":"chrome"}'}},
+        {"contentEnd": {"contentId": "t", "stopReason": "TOOL_USE"}},
+    ]
+    events += text_events("ASSISTANT", "Chrome aberto.", "a")
+    events += [usage_event(), {"completionEnd": {"stopReason": "END_TURN"}}]
+    provider, stream, client, tracker, backend = make_provider(tmp_path, events)
+    counts = []
+
+    def slow_tool(**kwargs):
+        before = len([e for e in stream.sent if "audioInput" in e])
+        time.sleep(0.15)
+        counts.append(len([e for e in stream.sent if "audioInput" in e]) - before)
+        return "Opened chrome."
+
+    backend.open_app.side_effect = slow_tool
+    try:
+        assert provider.run(b"\x01\x00").text == "Chrome aberto."
+        assert counts and counts[0] >= 3
+    finally:
+        tracker.close()

@@ -1,4 +1,4 @@
-# Voz com Nova 2 Sonic — versão 0.2.1
+# Voz com Nova 2 Sonic
 
 O aplicativo oferece dois modos: Whisper/Piper local e Nova 2 Sonic na AWS.
 O modo local continua selecionado por padrão para não enviar áudio sem escolha.
@@ -49,8 +49,13 @@ No modo Sonic, comandos comuns podem executar sem uma tela de revisão da
 transcrição. **Parar** cancela captura, transmissão e reprodução pendentes.
 
 Esta versão captura a frase, envia em ritmo de áudio e só reproduz a resposta
-após concluir a interação. Isso acrescenta espera; ainda não oferece conversa
-contínua nem interrupção da resposta pela própria voz. A ativação por Whisper e
+após concluir a interação. Enquanto aguarda o Sonic, mantém o conteúdo de áudio
+aberto e envia silêncio digital, sem reabrir o microfone. Confirmações e ferramentas
+executam fora do loop de rede para não interromper esse fluxo. O envio termina
+na conclusão, no cancelamento ou no limite de duração/custo da sessão.
+
+Isso acrescenta espera; ainda não oferece conversa contínua nem interrupção da
+resposta pela própria voz. A ativação por Whisper e
 o detector de silêncio por volume são experimentais: ruído e pausas afetam o
 resultado. Ao atingir o limite sem pausa, o comando é rejeitado para evitar
 executar uma frase cortada. Ajuste a duração máxima e o silêncio conforme a fala.

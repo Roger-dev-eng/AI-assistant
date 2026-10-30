@@ -10,6 +10,10 @@ from uuid import uuid4
 from assistant.audio.recording import check_cancelled
 from assistant.core.intent_router import Action
 from assistant.tools.registry import TOOLS, validate
+from assistant.tools.windows import automation_context
+
+AUDIO_CHUNK_BYTES = 1024
+AUDIO_CHUNK_SECONDS = 0.032
 
 
 @dataclass(frozen=True)
@@ -126,16 +130,17 @@ class SonicProvider:
 
         prompt, audio_name = uuid4().hex, uuid4().hex
         complete = asyncio.Event()
-        audio_closed = False
+        send_lock = asyncio.Lock()
 
         async def send(name, fields):
             check_cancelled(self.cancelled)
             payload = json.dumps({"event": {name: fields}}, ensure_ascii=False).encode("utf-8")
-            await stream.input_stream.send(
-                InvokeModelWithBidirectionalStreamInputChunk(
-                    value=BidirectionalInputPayloadPart(bytes_=payload)
+            async with send_lock:
+                await stream.input_stream.send(
+                    InvokeModelWithBidirectionalStreamInputChunk(
+                        value=BidirectionalInputPayloadPart(bytes_=payload)
+                    )
                 )
-            )
 
         async def text_block(role, text, tool_id=None):
             content = uuid4().hex
@@ -230,26 +235,28 @@ class SonicProvider:
         )
 
         async def publish():
-            nonlocal audio_closed
-            # Paced upload of the captured utterance plus bounded trailing silence.
-            payload = pcm + bytes(16000 * 2 * 2)
-            for offset in range(0, len(payload), 1024):
-                if complete.is_set():
-                    return
+            # Sonic expects a live input container until the interaction ends.
+            # Keep sending synthetic silence after the clip; never reopen the mic.
+            offset = 0
+            while not complete.is_set():
+                chunk = pcm[offset : offset + AUDIO_CHUNK_BYTES]
+                offset += len(chunk)
+                chunk = chunk.ljust(AUDIO_CHUNK_BYTES, b"\x00")
                 await send(
                     "audioInput",
                     {
                         "promptName": prompt,
                         "contentName": audio_name,
-                        "content": base64.b64encode(payload[offset : offset + 1024]).decode(
-                            "ascii"
-                        ),
+                        "content": base64.b64encode(chunk).decode("ascii"),
                     },
                 )
-                await asyncio.sleep(0.032)
-            await send("contentEnd", {"promptName": prompt, "contentName": audio_name})
-            audio_closed = True
-            await complete.wait()
+                await asyncio.sleep(AUDIO_CHUNK_SECONDS)
+
+        def execute_tool(action):
+            # COM and synchronous Playwright must run outside the network event loop.
+            # Actions remain serialized; cancellation is shared with the executor.
+            with automation_context():
+                return self.executor.execute(action)
 
         async def receive():
             _, output = await stream.await_output()
@@ -319,7 +326,7 @@ class SonicProvider:
                             raise ValueError("Ferramenta sem transcrição final ou término válido.")
                         seen.add(identifier)
                         try:
-                            result = self.executor.execute(action)
+                            result = await asyncio.to_thread(execute_tool, action)
                         except InterruptedError:
                             raise
                         except Exception as exc:
@@ -356,16 +363,18 @@ class SonicProvider:
                 task.result()
             return await tasks[1]
         finally:
+            if not complete.is_set():
+                # Wake pending confirmations/tools before asyncio joins its thread pool.
+                self.cancelled.set()
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
             try:
                 async with asyncio.timeout(2):
                     if not self.cancelled.is_set():
-                        if not audio_closed:
-                            await send(
-                                "contentEnd", {"promptName": prompt, "contentName": audio_name}
-                            )
+                        await send(
+                            "contentEnd", {"promptName": prompt, "contentName": audio_name}
+                        )
                         await send("promptEnd", {"promptName": prompt})
                         await send("sessionEnd", {})
                     await stream.input_stream.close()

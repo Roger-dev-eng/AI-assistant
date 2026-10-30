@@ -2,6 +2,17 @@
 
 Validado em 29/10/2026, Windows x64 e Python 3.12.14.
 
+## Correção 0.3.1 — continuidade do fluxo Sonic
+
+- Mantém o conteúdo de áudio aberto até concluir a interação. Após enviar a frase,
+  publica silêncio digital em blocos de 32 ms, sem capturar áudio adicional.
+- Ferramentas e confirmações síncronas executam fora do loop de rede, com contexto
+  COM próprio. O envio de eventos é serializado para proteger o stream.
+- Falhas e cancelamento sinalizam as ações pendentes antes de encerrar o pool.
+- Dois testes de regressão simulam resposta tardia e ferramenta bloqueante.
+  Sua execução e o empacotamento são feitos no GitHub Actions.
+- Nenhum teste pago ou gravação real foi feito localmente nesta correção.
+
 ## Atualização 0.3.0 — Actions, Releases e atualização pelo aplicativo
 
 - Inclui a correção do evento de gravação Sonic da versão 0.2.1.
