@@ -89,7 +89,6 @@ AI-assistant/
 ├── packaging/              # Instalador Windows e informações de terceiros
 ├── docs/                   # Configuração AWS, implementação e validação
 ├── .github/workflows/      # Testes e publicação pelo GitHub Actions
-├── .env.example            # Exemplo de configuração sem credenciais
 ├── pyproject.toml          # Metadados e dependências do projeto
 ├── requirements-windows.lock
 └── README.md
@@ -146,13 +145,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python -m playwright install chromium
 ```
 
-3. Copie o exemplo de configuração:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-4. Abra a interface com AWS desabilitada e ações simuladas:
+3. Abra a interface com AWS desabilitada e ações simuladas:
 
 ```powershell
 .\.venv\Scripts\python -m assistant --gui --offline --dry-run
