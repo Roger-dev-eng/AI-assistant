@@ -2,6 +2,16 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Correção 0.3.8 — inicialização da coleta no Actions
+
+- Os workflows da 0.3.7 foram rejeitados na validação: `runner.temp` não é
+  permitido em `jobs.<job>.env`. Nenhum job ou teste iniciou e não houve artefatos.
+- O diretório agora é definido em uma etapa PowerShell por `RUNNER_TEMP` e
+  `GITHUB_ENV`, antes de instalar dependências e executar os testes.
+- A coleta continua automática em caso de falha. O erro nativo anterior ainda
+  depende de uma nova ocorrência com os logs habilitados para diagnóstico.
+- A execução da 0.3.8 está pendente; nenhuma suíte foi executada localmente.
+
 ## Diagnóstico 0.3.7 — falha nativa intermitente
 
 - Na release 0.3.6, o teste de encerramento retornou `0xC0000005`, sem stdout ou

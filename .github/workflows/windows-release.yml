@@ -19,14 +19,16 @@ jobs:
     needs: tests
     runs-on: windows-latest
     timeout-minutes: 45
-    env:
-      ASSISTANT_LOG_DIR: ${{ runner.temp }}/assistant-diagnostics
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Configure diagnostic log directory
+        shell: pwsh
+        run: |
+          "ASSISTANT_LOG_DIR=$(Join-Path $env:RUNNER_TEMP 'assistant-diagnostics')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
