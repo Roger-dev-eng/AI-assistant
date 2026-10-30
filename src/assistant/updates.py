@@ -200,6 +200,7 @@ def start_install(release, installer, directory):
         "log": str(directory / "install.log"), "status": str(directory / "status.json"),
         "ready": str(ready),
         "sha256": release.sha256,
+        "notify_failure": True,
     }), "utf-8")
     helper = directory / f"AssistantUpdater-{uuid.uuid4().hex}.exe"
     source_helper = updater_executable()

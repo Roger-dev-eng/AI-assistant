@@ -159,6 +159,10 @@ class UpdateDialog(QDialog):
             self.ready = True
 
     def finished_job(self):
+        if not self.job.wait(1000):
+            self.status.setText("Aguardando o encerramento do processo de atualização…")
+            QTimer.singleShot(100, self.finished_job)
+            return
         operation = self.job.operation
         self.job.deleteLater()
         self.job = None

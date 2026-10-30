@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -103,3 +104,82 @@ def test_locked_image_is_rejected_before_installing(native_updater, tmp_path):
         assert not (tmp_path / "install.log").exists()
     finally:
         kernel.CloseHandle(handle)
+
+
+@pytest.mark.parametrize("install_code", [0, 5])
+def test_update_waits_for_exit_and_restarts_only_on_success(native_updater, tmp_path, install_code):
+    import hashlib
+    from pathlib import Path
+
+    data = manifest(tmp_path)
+    compiler = Path(os.environ["SystemRoot"]) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
+    target = Path(data["executable"])
+    stop_file = tmp_path / "close-request"
+    restart_file = tmp_path / "restart-count"
+    installed_file = tmp_path / "installed-marker"
+    replacement = tmp_path / "replacement.exe"
+
+    def compile_program(name, body, output):
+        source = tmp_path / (name + ".cs")
+        source.write_text('class Program { static int Main(string[] args) { ' + body + ' } }',
+                          "utf-8")
+        subprocess.run([str(compiler), "/nologo", "/target:winexe", "/platform:x64",
+                        "/out:" + str(output), str(source)], check=True)
+
+    # All paths and executables are confined to this test's temporary directory.
+    def quote(path):
+        return json.dumps(str(path))
+    compile_program("OldApp", 'if (args.Length > 0) { System.IO.File.AppendAllText(' +
+                    quote(restart_file) + ', "old\\n"); return 0; } '
+                    'while (!System.IO.File.Exists(' + quote(stop_file) +
+                    ')) System.Threading.Thread.Sleep(20); return 0;', target)
+    compile_program("NewApp", 'System.IO.File.AppendAllText(' + quote(restart_file) +
+                    ', "start\\n"); return 0;', replacement)
+    installer_body = (
+        'System.IO.File.Copy(' + quote(replacement) + ', ' + quote(target) +
+        ', true); System.IO.File.WriteAllText(' + quote(installed_file) +
+        ', "installed"); return 0;' if install_code == 0 else 'return 5;'
+    )
+    compile_program("Installer", installer_body, Path(data["installer"]))
+    data["sha256"] = hashlib.sha256(Path(data["installer"]).read_bytes()).hexdigest()
+    child = subprocess.Popen([str(target)], creationflags=subprocess.CREATE_NO_WINDOW)
+    helper = None
+    try:
+        data["process"] = child.pid
+        parameters = tmp_path / "apply.json"
+        parameters.write_text(json.dumps(data), "utf-8")
+        helper = subprocess.Popen([str(native_updater), str(parameters)],
+                                  creationflags=subprocess.CREATE_NO_WINDOW)
+        deadline = time.monotonic() + 8
+        while not Path(data["ready"]).exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert Path(data["ready"]).exists()
+        assert child.poll() is None
+        assert not installed_file.exists()
+        stop_file.write_text("close", "utf-8")
+        child.wait(timeout=5)
+        result = helper.wait(timeout=20)
+        status = json.loads(Path(data["status"]).read_text("utf-8"))
+        if install_code == 0:
+            assert result == 0, status
+            deadline = time.monotonic() + 5
+            while not restart_file.exists() and time.monotonic() < deadline:
+                time.sleep(0.02)
+            assert target.read_bytes() == replacement.read_bytes()
+            assert restart_file.read_text().splitlines() == ["start"]
+            assert status["success"] is True
+        else:
+            assert result == 1, status
+            assert status["success"] is False
+            assert "código 5" in status["message"]
+            deadline = time.monotonic() + 1
+            while time.monotonic() < deadline:
+                assert not restart_file.exists(), "The failed update restarted the old application"
+                time.sleep(0.02)
+        assert not (tmp_path / "active-update.json").exists()
+    finally:
+        stop_file.write_text("close", "utf-8")
+        child.wait(timeout=5)
+        if helper is not None and helper.poll() is None:
+            helper.terminate()  # Only the updater created for this isolated CI test.
+            helper.wait(timeout=5)

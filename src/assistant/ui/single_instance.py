@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QEventLoop, QLockFile, QObject, QTimer, Signal
+from PySide6.QtCore import QLockFile, QObject, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
 ACTIVATION_TIMEOUT_MS = 2000
@@ -33,6 +33,7 @@ class SingleInstance(QObject):
     """One desktop per data directory, with local activation of the existing window."""
 
     activation_requested = Signal()
+    handoff_finished = Signal(bool)
 
     def __init__(self, directory, parent=None):
         super().__init__(parent)
@@ -47,6 +48,12 @@ class SingleInstance(QObject):
         self.server.newConnection.connect(self.receive)
         self.owner = False
         self.notified = False
+        self.client = None
+        self.received = bytearray()
+        self.notification_finished = True
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.notification_timeout)
 
     def acquire(self):
         self.notified = False
@@ -59,35 +66,69 @@ class SingleInstance(QObject):
             return True
         if self.lock.error() != QLockFile.LockError.LockFailedError:
             raise RuntimeError("Não foi possível bloquear a pasta de dados do assistente.")
-        client = QLocalSocket(self)
-        loop = QEventLoop()
-        timer = QTimer()
-        timer.setSingleShot(True)
-        received = bytearray()
-
-        def acknowledge():
-            if client.bytesAvailable():
-                received.extend(bytes(client.readAll()))
-            if b"\n" in received:
-                self.notified = bytes(received).split(b"\n", 1)[0] == b"activated"
-                loop.quit()
-
-        client.connected.connect(lambda: client.write(b"activate\n"))
-        client.readyRead.connect(acknowledge)
-        client.errorOccurred.connect(loop.quit)
-        client.disconnected.connect(acknowledge)
-        client.disconnected.connect(loop.quit)
-        timer.timeout.connect(loop.quit)
-        timer.start(ACTIVATION_TIMEOUT_MS)
-        client.connectToServer(self.name)
-        # Process events until the first instance confirms activation, not merely
-        # until Windows accepts bytes into the outgoing pipe buffer.
-        if not self.notified:
-            loop.exec()
-        timer.stop()
-        client.abort()
-        client.deleteLater()
         return False
+
+    @Slot()
+    def notify_existing(self):
+        if self.owner or not self.notification_finished:
+            return
+        self.notified = False
+        self.notification_finished = False
+        self.received.clear()
+        self.client = QLocalSocket(self)
+        self.client.connected.connect(self.send_activation)
+        self.client.readyRead.connect(self.read_confirmation)
+        self.client.errorOccurred.connect(self.connection_ended)
+        self.client.disconnected.connect(self.connection_ended)
+        self.timer.start(ACTIVATION_TIMEOUT_MS)
+        self.client.connectToServer(self.name)
+
+    @Slot()
+    def send_activation(self):
+        if self.client is not None and not self.notification_finished:
+            self.client.write(b"activate\n")
+
+    @Slot()
+    def read_confirmation(self):
+        if self.client is None or self.notification_finished:
+            return
+        if self.client.bytesAvailable():
+            self.received.extend(bytes(self.client.readAll()))
+        if len(self.received) > 64:
+            self.finish_notification(False)
+        elif b"\n" in self.received:
+            self.finish_notification(bytes(self.received).split(b"\n", 1)[0] == b"activated")
+
+    @Slot()
+    def connection_ended(self):
+        self.read_confirmation()
+        if not self.notification_finished:
+            self.finish_notification(False)
+
+    @Slot()
+    def notification_timeout(self):
+        self.finish_notification(False)
+
+    def finish_notification(self, delivered):
+        if self.notification_finished:
+            return
+        self.notification_finished = True
+        self.notified = bool(delivered)
+        self.timer.stop()
+        self.dispose_client()
+        self.handoff_finished.emit(self.notified)
+
+    def dispose_client(self):
+        client, self.client = self.client, None
+        if client is not None:
+            # Disconnect callbacks before aborting so native error/disconnect signals
+            # cannot re-enter cleanup or access a client already scheduled for deletion.
+            client.connected.disconnect(self.send_activation)
+            client.readyRead.disconnect(self.read_confirmation)
+            client.errorOccurred.disconnect(self.connection_ended)
+            client.disconnected.disconnect(self.connection_ended)
+            client.abort()
+            client.deleteLater()
 
     def receive(self):
         while self.server.hasPendingConnections():
@@ -116,6 +157,9 @@ class SingleInstance(QObject):
                 activate()
 
     def close(self):
+        self.notification_finished = True
+        self.timer.stop()
+        self.dispose_client()
         if self.owner:
             self.server.close()
             self.lock.unlock()

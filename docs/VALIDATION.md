@@ -2,6 +2,26 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Correção 0.3.6 — encerramento antes de instalar e comunicação assíncrona
+
+- O Actions da 0.3.5 abortou no loop Qt aninhado durante a simulação de falta de
+  resposta entre instâncias. A comunicação agora usa socket e timer pertencentes
+  ao objeto, sinais assíncronos e o loop principal, sem `QEventLoop.exec()` interno.
+- Confirmação, erro, desconexão e timeout finalizam a notificação uma única vez;
+  os callbacks são desconectados antes de abortar e descartar o socket.
+- O diálogo de atualização é aberto sem loop modal aninhado. A transferência
+  para o instalador aguarda o término real do worker, desabilita novas tarefas
+  e agenda o encerramento da janela no loop principal.
+- O aplicativo sai explicitamente após fechar a janela, liberar o worker e
+  desligar a bandeja. Fechar a janela para a bandeja continua separado de Sair.
+- O auxiliar espera o PID, outras cópias e a liberação do executável. Só reabre
+  o aplicativo após instalação bem-sucedida. Falhas mostram aviso próprio do
+  auxiliar e gravam status/log, sem tentar abrir outra cópia automaticamente.
+- Novos testes no Actions verificam saída real do processo desktop e uma troca
+  de executável isolada: esperar o processo antigo, substituir e reiniciar uma
+  única vez. O instalador desse teste é um programa controlado, não a instalação
+  do usuário. Não houve execução local da suíte nesta alteração.
+
 ## Correção 0.3.5 — confirmação de ativação e encerramento
 
 - A execução 40996187204 do Actions registrou 232 testes aprovados e uma falha:

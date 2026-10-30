@@ -309,10 +309,18 @@ class MainWindow(QMainWindow):
             return
         dialog = UpdateDialog(self)
         self.update_dialog = dialog
-        dialog.install_ready.connect(self.request_exit)
+        dialog.install_ready.connect(self.prepare_update_shutdown)
         dialog.finished.connect(self.updates_closed)
         self.set_busy(True)
-        dialog.exec()
+        dialog.open()
+
+    @Slot()
+    def prepare_update_shutdown(self):
+        self.exiting = True
+        self.queued_speech = ""
+        self.set_busy(True)
+        self.state_label.setText("Encerrando o aplicativo para instalar a atualização…")
+        QTimer.singleShot(0, self.request_exit)
 
     @Slot(int)
     def updates_closed(self, result):
@@ -658,5 +666,5 @@ class MainWindow(QMainWindow):
         if self.tray is not None:
             self.tray.hide()
         event.accept()
-        if self.exiting:
-            self.exit_ready.emit()
+        self.exiting = True
+        self.exit_ready.emit()

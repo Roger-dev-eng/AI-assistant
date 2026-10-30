@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -12,6 +13,9 @@ using System.Web.Script.Serialization;
 internal static class AssistantUpdater
 {
     private static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int MessageBox(IntPtr owner, string text, string title, uint type);
 
     private static string Text(Dictionary<string, object> data, string key)
     {
@@ -105,7 +109,7 @@ internal static class AssistantUpdater
     private static int Main(string[] args)
     {
         string parameters = null, status = null, executable = null, marker = null;
-        bool applicationClosed = false;
+        bool readySent = false, notifyFailure = false;
         try
         {
             if (args.Length != 1) return 2;
@@ -113,6 +117,7 @@ internal static class AssistantUpdater
             string cache = Path.GetDirectoryName(parameters);
             var data = Json.Deserialize<Dictionary<string, object>>(
                 File.ReadAllText(parameters, Encoding.UTF8));
+            notifyFailure = data.ContainsKey("notify_failure") && Convert.ToBoolean(data["notify_failure"]);
             string installer = Absolute(Text(data, "installer"));
             executable = Absolute(Text(data, "executable"));
             string directory = Absolute(Text(data, "directory"));
@@ -145,10 +150,10 @@ internal static class AssistantUpdater
                         process = updater.Id, executable = updater.MainModule.FileName
                     }), new UTF8Encoding(false));
                 File.WriteAllText(ready, "ready");
+                readySent = true;
                 if (previous != null && !previous.WaitForExit(120000))
                     throw new TimeoutException("O aplicativo não encerrou a tempo. Nenhum processo foi forçado a fechar.");
             }
-            applicationClosed = true;
             WaitForAllInstances(executable);
             WaitForImageRelease(executable);
 
@@ -186,9 +191,11 @@ internal static class AssistantUpdater
             {
                 try { Status(status, false, error.Message); } catch { }
             }
-            if (applicationClosed && executable != null && File.Exists(executable))
+            if (readySent && notifyFailure)
             {
-                try { Restart(executable); } catch { }
+                MessageBox(IntPtr.Zero, error.Message +
+                    "\n\nA atualização não foi concluída. O assistente não foi reaberto automaticamente. " +
+                    "Consulte o arquivo install.log na pasta de atualizações.", "Falha na atualização", 0x10);
             }
             return 1;
         }

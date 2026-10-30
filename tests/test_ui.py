@@ -102,8 +102,9 @@ def test_only_one_instance_owns_lock_and_second_activates_first(app, tmp_path):
     try:
         assert first.acquire()
         assert not second.acquire()
+        second.notify_existing()
+        wait_until(app, lambda: second.notification_finished)
         assert second.notified
-        wait_until(app, lambda: activated.called)
         activated.assert_called_once()
         first.close()
         assert second.acquire()
@@ -117,10 +118,15 @@ def test_unacknowledged_activation_does_not_start_a_second_instance(app, tmp_pat
 
     monkeypatch.setattr("assistant.ui.single_instance.ACTIVATION_TIMEOUT_MS", 30)
     first, second = SingleInstance(tmp_path), SingleInstance(tmp_path)
+    delivered = Mock()
+    second.handoff_finished.connect(delivered)
     try:
         assert first.acquire()
         first.server.newConnection.disconnect(first.receive)
         assert not second.acquire()
+        second.notify_existing()
+        wait_until(app, lambda: delivered.called)
+        delivered.assert_called_once_with(False)
         assert not second.owner
         assert not second.notified
         assert first.owner
@@ -142,11 +148,15 @@ def test_activation_between_real_processes(app, tmp_path):
     try:
         assert owner.acquire()
         script = (
-            "import sys; from PySide6.QtCore import QCoreApplication; "
-            "from assistant.ui.single_instance import SingleInstance; "
-            "app=QCoreApplication([]); guard=SingleInstance(sys.argv[1]); "
-            "owned=guard.acquire(); print(str(owned)+','+str(guard.notified), flush=True); "
-            "guard.close()"
+            "import sys\nfrom PySide6.QtCore import QCoreApplication, QTimer\n"
+            "from assistant.ui.single_instance import SingleInstance\n"
+            "app=QCoreApplication([])\nguard=SingleInstance(sys.argv[1])\n"
+            "owned=guard.acquire()\n"
+            "if not owned:\n"
+            "    guard.handoff_finished.connect(lambda delivered: app.quit())\n"
+            "    QTimer.singleShot(0, guard.notify_existing)\n"
+            "    app.exec()\n"
+            "print(str(owned)+','+str(guard.notified), flush=True)\nguard.close()\n"
         )
         child = subprocess.Popen(
             [sys.executable, "-c", script, str(tmp_path)], stdout=subprocess.PIPE,
@@ -163,6 +173,36 @@ def test_activation_between_real_processes(app, tmp_path):
             child.terminate()  # Only the isolated client process created by this test.
             child.wait(timeout=5)
         owner.close()
+
+
+def test_desktop_process_exits_after_explicit_shutdown(tmp_path):
+    import subprocess
+    import sys
+
+    (tmp_path / "settings.json").write_text("{}", "utf-8")
+    script = (
+        "from unittest.mock import patch\n"
+        "from PySide6.QtCore import QTimer\n"
+        "from PySide6.QtWidgets import QApplication\n"
+        "from assistant.config import Settings\n"
+        "from assistant.ui.app import run_desktop\n"
+        "from assistant.ui.main_window import MainWindow\n"
+        "class ClosingWindow(MainWindow):\n"
+        "    def __init__(self, *args, **kwargs):\n"
+        "        super().__init__(*args, **kwargs)\n"
+        "        QApplication.instance().setQuitOnLastWindowClosed(False)\n"
+        "        QTimer.singleShot(50, self.request_exit)\n"
+        "with patch('assistant.ui.app.MainWindow', ClosingWindow):\n"
+        "    raise SystemExit(run_desktop(Settings(), dry_run=True, force_offline=True))\n"
+    )
+    environment = dict(os.environ, ASSISTANT_DATA_DIR=str(tmp_path), QT_QPA_PLATFORM="offscreen")
+    result = subprocess.run(
+        [sys.executable, "-c", script], env=environment, capture_output=True, text=True,
+        timeout=15, check=False,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+    )
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / "desktop.lock").exists()
 
 
 def test_sonic_requires_cloud_choice_before_creating_worker(make_window):
@@ -209,6 +249,18 @@ def test_update_dialog_downloads_then_hands_off_after_worker_finishes(app, tmp_p
         download.assert_called_once()
         install.assert_called_once_with(release, installer, tmp_path)
         dialog.deleteLater()
+
+
+def test_update_shutdown_disables_new_work_before_requesting_exit(app, make_window):
+    window = make_window()
+    with patch.object(window, "request_exit") as exit_request:
+        window.prepare_update_shutdown()
+        assert window.exiting
+        assert not window.send_button.isEnabled()
+        assert not window.record_button.isEnabled()
+        assert not window.sonic_record_button.isEnabled()
+        wait_until(app, lambda: exit_request.called)
+        exit_request.assert_called_once()
 
 
 def test_simulated_task_keeps_ui_responsive(app, make_window):

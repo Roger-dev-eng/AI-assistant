@@ -228,7 +228,7 @@ Versões anteriores à **0.3.0** precisam de uma atualização manual inicial pa
 
 A versão **0.3.2** substitui o auxiliar PowerShell por um executável nativo, eliminando a dependência da política de scripts. Se uma versão anterior baixar o pacote e mostrar que o Windows não iniciou o atualizador, instale a 0.3.2 manualmente por cima da atual. Não é necessário desinstalar nem alterar as políticas do Windows.
 
-A partir da **0.3.5**, abrir novamente o app ativa a instância já existente e aguarda a confirmação dessa comunicação. O atualizador verifica outras cópias da mesma instalação e exige que o executável esteja liberado antes de iniciar a substituição. Se estiver em uma versão antiga com cópias duplicadas, feche todas pelo menu **Aplicativo → Sair** antes de instalar a atualização. Nenhum processo é encerrado à força.
+A partir da **0.3.6**, abrir novamente o app solicita a ativação da instância existente por comunicação assíncrona. Na atualização, a janela e os workers encerram antes de o auxiliar substituir os arquivos; ele espera o processo terminar e o Windows liberar o executável. A reabertura automática acontece somente após uma instalação bem-sucedida. Se falhar, o auxiliar mostra o motivo sem abrir outra cópia. Em versões antigas, feche todas as cópias pelo menu **Aplicativo → Sair** antes de instalar a correção. Nenhum processo é encerrado à força.
 
 A distribuição utiliza [GitHub Releases](https://github.com/Roger-dev-eng/AI-assistant/releases). Para publicar uma versão, atualize os metadados em `pyproject.toml` e `packaging/windows.iss`, envie o código e publique a tag `vX.Y.Z`. O GitHub Actions valida a versão, executa os testes, gera o aplicativo, verifica seu diagnóstico e publica instalador, fontes e hashes.
 
