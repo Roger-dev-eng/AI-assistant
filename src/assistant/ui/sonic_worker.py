@@ -12,6 +12,7 @@ from assistant.audio.wake_trigger import activation_tone, wait_for_keyword
 from assistant.cloud.usage_tracker import UsageTracker
 from assistant.core.action_executor import ActionExecutor
 from assistant.runtime_log import mark
+from assistant.storage.activity import ActivityStore
 from assistant.storage.memory import ConversationMemory
 from assistant.tools.windows import WindowsTools, automation_context
 from assistant.ui.worker import TaskWorker
@@ -76,16 +77,25 @@ class SonicWorker(TaskWorker):
                 )
             with automation_context():
                 executor = ActionExecutor(
-                    self.backend_factory(), self.confirm, self.dry_run, self.cancelled
+                    self.backend_factory(), self.confirm, self.dry_run, self.cancelled,
+                    activity=(ActivityStore(self.database_path, self.settings.command_history_retention_days)
+                              if self.settings.command_history_enabled and not self.dry_run else None),
                 )
                 executor.begin_task()
                 self.confirmation_deadline = time.monotonic() + self.settings.sonic_timeout_seconds
+                heard = []
+
+                def transcript_received(text):
+                    heard.append(text)
+                    executor.set_command("\n".join(heard))
+                    self.user_text.emit(text)
+
                 provider = self.sonic_factory(
                     self.settings,
                     tracker,
                     executor,
                     self.cancelled,
-                    on_transcript=self.user_text.emit,
+                    on_transcript=transcript_received,
                     history=memory.messages() if memory else (),
                     on_phase=self.phase.emit,
                     on_action=self.action_done.emit,

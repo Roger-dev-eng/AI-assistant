@@ -87,6 +87,15 @@ executar uma frase cortada. Ajuste a duração máxima e o silêncio conforme a 
 
 ## Custos, dados e limites
 
+Na 0.3.12, o histórico de comandos e a correlação de navegação também estão
+disponíveis para ferramentas acionadas pelo Sonic. Diga **“abre o YouTube”**,
+depois **“pesquisa Python”**, depois **“abre o primeiro vídeo”**, ativando a voz
+normalmente para cada comando. A referência vem do SQLite local, é conferida na
+janela de Chrome/Edge controlada pelo assistente e o resultado exige confirmação.
+O histórico de comandos é separado da memória opcional de conversa enviada à IA.
+A nova tela está em **Configurações → Geral e privacidade → Ver banco de dados…**.
+O fluxo de envio e reprodução de áudio não foi alterado nesta versão.
+
 A espera por **Assistente** não cria uma sessão AWS. O modelo Vosk é carregado
 de uma pasta local explícita, sem download em tempo de execução. A fila de áudio
 é limitada em memória, sem gravação em disco. Enquanto o Sonic fala, o detector

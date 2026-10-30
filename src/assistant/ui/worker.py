@@ -8,6 +8,7 @@ from assistant.ai.bedrock_provider import BedrockProvider
 from assistant.cloud.usage_tracker import UsageTracker
 from assistant.core.action_executor import ActionExecutor
 from assistant.core.orchestrator import Orchestrator
+from assistant.storage.activity import ActivityStore
 from assistant.storage.memory import ConversationMemory
 from assistant.tools.windows import WindowsTools, automation_context
 
@@ -79,7 +80,9 @@ class TaskWorker(QThread):
                 )
             with automation_context():
                 executor = ActionExecutor(
-                    self.backend_factory(), self.confirm, self.dry_run, self.cancelled
+                    self.backend_factory(), self.confirm, self.dry_run, self.cancelled,
+                    activity=(ActivityStore(self.database_path, self.settings.command_history_retention_days)
+                              if self.settings.command_history_enabled and not self.dry_run else None),
                 )
                 provider = self.provider_factory(self.settings, tracker)
                 assistant = Orchestrator(executor, provider, self.settings.max_tool_rounds, memory)

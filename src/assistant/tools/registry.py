@@ -33,7 +33,8 @@ TOOLS = {
         ),
         Tool(
             "open_site",
-            "Open a known public website in the default browser.",
+            "Open a known public website. With local command history enabled, reuse the "
+            "verified app-controlled browser tab; otherwise use the default browser.",
             obj(
                 {
                     "url": {
@@ -50,7 +51,8 @@ TOOLS = {
         ),
         Tool(
             "search_web",
-            "Open Google or YouTube search. Does not read or rank results.",
+            "Open Google or YouTube search, reusing the app-controlled tab when available. "
+            "Does not read or rank results. Use search_current_site for a follow-up without a named site.",
             obj(
                 {
                     "query": {"type": "string", "minLength": 1, "maxLength": 1000},
@@ -70,6 +72,19 @@ TOOLS = {
                 },
                 ["query", "engine"],
             ),
+        ),
+        Tool(
+            "search_current_site",
+            "Search in the last Google/YouTube context saved by the assistant. Reuses its verified "
+            "browser tab or opens a new one if closed. Use for follow-up searches without a named site.",
+            obj({"query": {"type": "string", "minLength": 1, "maxLength": 1000}}, ["query"]),
+        ),
+        Tool(
+            "open_correlated_result",
+            "Open result 1–5 from the previous search in its verified live tab. Reads current "
+            "titles/URLs and requires user confirmation. Does not replay a saved command.",
+            obj({"position": {"type": "integer", "minimum": 1, "maximum": 5}}, ["position"]),
+            True,
         ),
         Tool(
             "open_search_result",

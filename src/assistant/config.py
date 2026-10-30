@@ -26,6 +26,8 @@ class Settings:
     recording_seconds: int = 10
     wake_listen_seconds: int = 120
     memory_enabled: bool = False
+    command_history_enabled: bool = True
+    command_history_retention_days: int = 30
     memory_retention_days: int = 7
     memory_max_turns: int = 6
     secondary_model_id: str = ""
@@ -82,6 +84,8 @@ class Settings:
             raise ValueError("Wake listening duration must be between 15 and 600 seconds.")
         if not 1 <= self.memory_retention_days <= 365 or not 1 <= self.memory_max_turns <= 20:
             raise ValueError("Memory retention must be 1–365 days and 1–20 turns.")
+        if not 1 <= self.command_history_retention_days <= 365:
+            raise ValueError("Command history retention must be 1–365 days.")
         if self.secondary_model_id and any(
             value is None or not math.isfinite(value) or value <= 0
             for value in (self.secondary_input_rate, self.secondary_output_rate)
@@ -113,6 +117,8 @@ class Settings:
             "RECORDING_SECONDS": "recording_seconds",
             "WAKE_LISTEN_SECONDS": "wake_listen_seconds",
             "MEMORY_ENABLED": "memory_enabled",
+            "COMMAND_HISTORY_ENABLED": "command_history_enabled",
+            "COMMAND_HISTORY_RETENTION_DAYS": "command_history_retention_days",
             "MEMORY_RETENTION_DAYS": "memory_retention_days",
             "MEMORY_MAX_TURNS": "memory_max_turns",
             "SECONDARY_MODEL_ID": "secondary_model_id",

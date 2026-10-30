@@ -37,7 +37,7 @@ SITES = {
 class IntentRouter:
     """Only full, unambiguous matches run locally; other requests go to the planner."""
 
-    def route(self, text: str) -> list[Action] | None:
+    def route(self, text: str, current_site=None) -> list[Action] | None:
         value = normalize(text)
         if not value:
             return None
@@ -50,7 +50,7 @@ class IntentRouter:
             flags=re.I,
         )
         if len(parts) > 1:
-            plans = [self.route(part) for part in parts]
+            plans = [self.route(part, current_site) for part in parts]
             if all(plan is not None for plan in plans):
                 return [action for plan in plans for action in plan]
             return None
@@ -87,7 +87,17 @@ class IntentRouter:
             r"(?:pesquise|pesquisa|busque|search)(?:\s+(?:por|for))?\s+(.+)", text.strip(), re.I
         )
         if match:
+            if current_site:
+                return [Action("search_current_site", {"query": match[1]})]
             return [Action("search_web", {"query": match[1], "engine": "google"})]
+        match = re.fullmatch(r"(?:abra|abre|abrir|open)\s+(?:o |the )?"
+                             r"(primeiro|segundo|terceiro|quarto|quinto|first|second|third|[1-5])"
+                             r"(?:\s+(?:video|resultado|result))?", value)
+        if match:
+            positions = {"primeiro": 1, "segundo": 2, "terceiro": 3, "quarto": 4, "quinto": 5,
+                         "first": 1, "second": 2, "third": 3}
+            position = int(match[1]) if match[1].isdigit() else positions[match[1]]
+            return [Action("open_correlated_result", {"position": position})]
         match = re.fullmatch(
             r"(?:volume|(?:ajuste|defina|aumente|reduza|set|increase|decrease)\s+"
             r"(?:o |the )?volume)\s*(?:para|to|em)?\s*(\d{1,3})\s*%?",

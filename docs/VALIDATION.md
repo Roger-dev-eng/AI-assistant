@@ -2,6 +2,34 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Versão 0.3.12 — histórico e navegação correlacionada
+
+- Novas tabelas `command_history` e `navigation_context` no mesmo SQLite, sem
+  modificar registros de consumo ou conversas. Retenção de 30 dias por padrão,
+  configurável entre 1 e 365, e limite de 1.000 ações. Escritas usam conexões
+  curtas para funcionar também na thread de ferramentas do Sonic.
+- A interface desktop salva ações concluídas, negadas e com erro, sem repetir
+  automaticamente nenhuma delas. Simulações não entram no histórico real.
+  Falha ao registrar histórico não transforma uma ação já concluída em erro.
+- A navegação usa uma janela separada do Chrome/Edge instalado, sem importar o
+  perfil pessoal. Playwright pertence a uma única thread, que atende comandos e
+  processa os eventos da página enquanto espera. Essa janela fecha ao sair do app.
+- “Pesquisa…” sem site usa o último contexto Google/YouTube. A aba precisa pertencer
+  à sessão atual e ter o site esperado; referência fechada ou inválida gera nova
+  aba para navegar. Resultados por posição são lidos na pesquisa ao vivo, exigem
+  confirmação e são verificados novamente antes de abrir na mesma aba.
+- O visualizador nas configurações usa consultas fixas em conexão somente leitura,
+  mostra até 200 linhas por aba e permite apagar somente comandos/contexto, com
+  confirmação. Não consulta arquivos de credenciais ou cookies do navegador.
+- Testes preparados para o Actions cobrem persistência, retenção, acesso entre
+  threads, privacidade das consultas, preservação de consumo/conversas, recusa de
+  resultados alterados, referências obsoletas e o botão do visualizador. Uma cadeia
+  de comandos usa Chromium real com páginas sintéticas interceptadas, sem acessar
+  Google/YouTube ou AWS. A suíte não foi executada localmente.
+- O uso real com Chrome/Edge instalado, consentimento do YouTube e reconhecimento
+  das ferramentas pelo Sonic continua sujeito à validação prática. O fluxo de
+  áudio permaneceu inalterado. Resultado do Actions pendente nesta alteração.
+
 ## Correção 0.3.11 — compilação do instalador
 
 - Na 0.3.10, os testes e o diagnóstico do executável passaram. A compilação do

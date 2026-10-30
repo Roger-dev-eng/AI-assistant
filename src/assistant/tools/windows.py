@@ -29,6 +29,16 @@ class WindowsTools:
 
     def __init__(self):
         self.browser = BrowserTools()
+        self.activity = None
+
+    def bind_activity(self, activity):
+        self.activity = activity
+
+    def current_search_site(self):
+        state = self.activity.navigation() if self.activity else None
+        if state and state["site"] in {"google", "youtube"}:
+            return state["site"]
+        return "google"
 
     def bind_cancellation(self, cancelled):
         self.browser.cancelled = cancelled
@@ -43,6 +53,16 @@ class WindowsTools:
         return self.browser.describe_result(result_id)
 
     def open_search_result(self, result_id):
+        if self.activity is not None:
+            from assistant.tools.navigation import navigation_broker, site_of
+
+            self.browser.describe_result(result_id)
+            self.browser.check_cancelled()
+            url = self.browser.results[result_id]["url"]
+            saved = self.activity.navigation(site_of(url)) or self.activity.navigation()
+            state = navigation_broker().call("open_link", url, saved, self.browser.cancelled)
+            self.activity.remember_navigation(state)
+            return f"Resultado aberto na aba do assistente: {url}"
         return self.browser.open_search_result(result_id)
 
     @staticmethod
@@ -98,12 +118,45 @@ class WindowsTools:
         return f"Requested close for {count} window(s); save dialogs may remain."
 
     def open_site(self, url):
+        if self.activity is not None:
+            from assistant.tools.navigation import navigation_broker, site_of
+
+            saved = self.activity.navigation(site_of(url))
+            state = navigation_broker().call("navigate", url, saved, self.browser.cancelled)
+            self.activity.remember_navigation(state)
+            return f"Site aberto na aba do assistente: {url}"
         if not webbrowser.open(url):
             raise RuntimeError("Unable to open the default browser.")
         return f"Opened {url}."
 
     def search_web(self, query, engine):
-        return self.open_site(search_url(query, engine))
+        result = self.open_site(search_url(query, engine))
+        if self.activity is not None:
+            state = self.activity.navigation(engine)
+            self.activity.remember_navigation(state, query)
+        return result
+
+    def search_current_site(self, query):
+        if self.activity is None:
+            raise RuntimeError("Ative o histórico de comandos para usar a navegação correlacionada.")
+        return self.search_web(query, self.current_search_site())
+
+    def describe_correlated_result(self, position):
+        if self.activity is None:
+            raise RuntimeError("Ative o histórico de comandos para continuar uma pesquisa.")
+        from assistant.tools.navigation import navigation_broker
+
+        saved = self.activity.navigation()
+        selected = navigation_broker().call("describe_position", saved, position, self.browser.cancelled)
+        return f"Abrir resultado {position}:\n{selected['title']}\n{selected['url']}"
+
+    def open_correlated_result(self, position):
+        from assistant.tools.navigation import navigation_broker
+
+        saved = self.activity.navigation() if self.activity else None
+        state = navigation_broker().call("open_position", saved, position, self.browser.cancelled)
+        self.activity.remember_navigation(state)
+        return "Resultado aberto na mesma aba da pesquisa."
 
     def set_volume(self, percent):
         self._windows()

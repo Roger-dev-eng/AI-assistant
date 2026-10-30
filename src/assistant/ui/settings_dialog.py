@@ -19,8 +19,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from assistant.config import save_preferences
+from assistant.config import data_path, save_preferences
 from assistant.security.startup import configure_startup
+from assistant.ui.database_dialog import DatabaseDialog
 
 
 class SettingsDialog(QDialog):
@@ -82,6 +83,18 @@ class SettingsDialog(QDialog):
         field(general, "memory_enabled", "Guardar contexto local (texto sem criptografia)")
         field(general, "memory_retention_days", "Retenção em dias", 1, 365)
         field(general, "memory_max_turns", "Máximo de interações guardadas", 1, 20)
+        field(general, "command_history_enabled", "Salvar comandos e navegação (sem criptografia)")
+        field(general, "command_history_retention_days", "Retenção dos comandos em dias", 1, 365)
+        self.database_button = QPushButton("Ver banco de dados…")
+        self.database_button.clicked.connect(self.open_database)
+        general.addRow("Histórico, navegação e consumo", self.database_button)
+        navigation_notice = QLabel(
+            "A correlação usa uma janela separada do Chrome/Edge controlada pelo assistente. "
+            "Ela fecha ao sair do assistente. Comandos conhecidos continuam locais; "
+            "o histórico não autoriza repetir ações. Desativar não apaga registros existentes."
+        )
+        navigation_notice.setWordWrap(True)
+        general.addRow(navigation_notice)
         field(general, "monthly_budget", "Cota estimada mensal (US$)")
         field(general, "daily_requests", "Máximo de requisições por dia", 1, 10000)
 
@@ -152,6 +165,11 @@ class SettingsDialog(QDialog):
         )
         if path:
             control.setText(path)
+
+    def open_database(self):
+        path = getattr(self.parent(), "database_path", data_path())
+        dialog = DatabaseDialog(path, int(self.fields["command_history_retention_days"].value()), self)
+        dialog.exec()
 
     def save(self):
         values = {}

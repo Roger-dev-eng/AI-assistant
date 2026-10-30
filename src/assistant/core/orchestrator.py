@@ -13,6 +13,7 @@ class Orchestrator:
         self.memory = memory
 
     def run(self, text):
+        self.executor.set_command(text)
         result = self._run(text)
         if self.memory is not None and text.strip() and not self.executor.cancelled.is_set():
             self.memory.remember(text, result)
@@ -24,7 +25,7 @@ class Orchestrator:
             return "Digite um comando / Enter a command."
         if len(text.encode("utf-8")) > 12000:
             raise ValueError("Command is too long.")
-        local = self.router.route(text)
+        local = self.router.route(text, self.executor.current_search_site())
         if local is not None:
             if len(local) > 10:
                 raise ValueError("Too many local actions in one task.")

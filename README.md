@@ -216,6 +216,16 @@ No modo Sonic, a interface distingue o envio da gravação, a execução da aç�
 
 Fechar a janela mantém o aplicativo na bandeja quando esse recurso está disponível. Para encerrar, use **Aplicativo → Sair** ou **Sair** no menu da bandeja.
 
+### Comandos relacionados e banco de dados
+
+A partir da **0.3.12**, a interface desktop registra ações em SQLite e mantém referências de navegação. O histórico vem habilitado, com retenção padrão de 30 dias e limite de 1.000 registros. Em **Aplicativo → Configurações → Geral e privacidade**, você pode desativar o recurso, ajustar a retenção de 1 a 365 dias e clicar em **Ver banco de dados…**. A tela mostra os últimos 200 registros por aba: comandos e resultados, navegação, consumo AWS e conversas opcionais. A consulta não permite executar SQL ou editar o banco.
+
+Com o histórico habilitado, experimente comandos separados: **“abre o YouTube”**, **“pesquisa Python”**, **“abre o primeiro vídeo”**. O assistente abre uma janela separada do Chrome ou Edge instalado, reaproveita a aba verificada e confirma o título/endereço antes de abrir um resultado. Informar explicitamente **“no Google”** ou **“no YouTube”** escolhe aquele site. Se você fechar a aba ou mudar seu site, uma nova aba é aberta para a próxima navegação. Uma pesquisa antiga ou fechada não autoriza abrir resultados: faça uma nova pesquisa quando solicitado.
+
+Somente abas da janela controlada pelo assistente são reutilizadas; abas pessoais já abertas não são assumidas como alvo. A janela controlada fecha ao sair do aplicativo. As referências permanecem no SQLite até vencer a retenção, mas são verificadas na sessão atual; após reiniciar, o assistente pode abrir uma nova aba. O histórico não repete comandos nem autorizações antigas. Comandos conhecidos de texto continuam usando o roteador local, sem consultar a IA. A interpretação de áudio do Sonic continua na AWS.
+
+Os dados usam o mesmo `usage.sqlite3` do aplicativo. Não são importados cookies, senhas do navegador ou arquivos de credenciais AWS. Os textos dos comandos e pesquisas podem conter informações pessoais: não dite segredos e desative o histórico se preferir. Padrões conhecidos de chaves/senhas são mascarados, mas isso não substitui cuidado com o conteúdo. **Apagar comandos e contexto de navegação** exige confirmação e preserva consumo, conversas e configurações. Desativar o recurso não apaga os registros já salvos. A memória de conversa para a IA continua sendo uma opção independente.
+
 Para usar pelo terminal:
 
 ```powershell
