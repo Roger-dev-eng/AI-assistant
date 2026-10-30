@@ -27,7 +27,8 @@ jobs:
           python -m pip install --no-deps -e .
       - run: python -m playwright install chromium
       - run: python -m ruff check src tests
-      - run: python -m pytest -q --junitxml=test-results.xml
+      # Excluded from CI at the user's request; retained for manual investigation.
+      - run: python -m pytest -q --deselect=tests/test_ui.py::test_desktop_process_exits_after_explicit_shutdown --junitxml=test-results.xml
       - name: Collect native Windows crash events
         if: always()
         shell: pwsh
