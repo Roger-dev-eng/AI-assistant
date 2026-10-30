@@ -2,6 +2,21 @@
 
 Registros de validação em Windows x64 e Python 3.12.14.
 
+## Correção 0.3.5 — confirmação de ativação e encerramento
+
+- A execução 40996187204 do Actions registrou 232 testes aprovados e uma falha:
+  a segunda abertura não ativou a primeira janela. A publicação 0.3.4 foi bloqueada.
+- O cliente agora aguarda a confirmação `activated` da primeira instância. O loop
+  Qt continua processando eventos durante essa espera; gravar no buffer da conexão
+  não é considerado confirmação de entrega.
+- Testes adicionais cobrem confirmação ausente e ativação entre processos reais.
+- Sair emite um sinal explícito para encerrar o loop da aplicação após os workers.
+- O auxiliar exige acesso exclusivo ao executável antes da instalação, aguardando
+  a liberação de arquivos em uso. Um teste de arquivo bloqueado verifica essa etapa.
+- As duas instâncias observadas após a falha anterior não provam que o usuário
+  abriu outra cópia: uma pode ter sido reaberta pela recuperação do atualizador.
+- Validação e publicação desta correção seguem pelo GitHub Actions.
+
 ## Atualização 0.3.4 — instância única, abas e arquivos em uso
 
 - Diagnóstico de 30/10/2026: o log da tentativa anterior mostra falha ao substituir

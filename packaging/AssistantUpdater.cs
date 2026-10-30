@@ -77,6 +77,30 @@ internal static class AssistantUpdater
         });
     }
 
+    private static void WaitForImageRelease(string executable)
+    {
+        if (!File.Exists(executable)) return;
+        Stopwatch timer = Stopwatch.StartNew();
+        while (true)
+        {
+            try
+            {
+                // No bytes are written. Exclusive access checks that Windows has
+                // released the image before the installer attempts replacement.
+                using (File.Open(executable, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+                return;
+            }
+            catch (Exception error)
+            {
+                if (!(error is IOException) && !(error is UnauthorizedAccessException)) throw;
+                if (timer.ElapsedMilliseconds >= 10000)
+                    throw new InvalidOperationException("O arquivo do aplicativo ainda está em uso " +
+                        "ou sem permissão de substituição. A instalação não foi iniciada.", error);
+                Thread.Sleep(100);
+            }
+        }
+    }
+
     [STAThread]
     private static int Main(string[] args)
     {
@@ -126,6 +150,7 @@ internal static class AssistantUpdater
             }
             applicationClosed = true;
             WaitForAllInstances(executable);
+            WaitForImageRelease(executable);
 
             using (var source = File.OpenRead(installer))
             using (var sha = SHA256.Create())

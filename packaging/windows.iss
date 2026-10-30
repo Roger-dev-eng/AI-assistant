@@ -1,4 +1,4 @@
-#define AppVersion "0.3.4"
+#define AppVersion "0.3.5"
 [Setup]
 AppId={{44C09BA1-FB5D-48D9-B9EC-807091F28B06}
 AppName=Assistente de IA

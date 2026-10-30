@@ -20,6 +20,7 @@ def run_desktop(settings, dry_run=False, force_offline=False, start_in_tray=Fals
         return 0
     try:
         window = MainWindow(settings, data_path(), dry_run, force_offline)
+        window.exit_ready.connect(application.quit)
         instance.activation_requested.connect(window.restore_window)
         if not start_in_tray or window.tray is None:
             window.show()

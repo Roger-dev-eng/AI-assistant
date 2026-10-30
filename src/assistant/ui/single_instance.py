@@ -3,8 +3,10 @@ import json
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QLockFile, QObject, Signal
+from PySide6.QtCore import QEventLoop, QLockFile, QObject, QTimer, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
+
+ACTIVATION_TIMEOUT_MS = 2000
 
 
 def update_in_progress(directory):
@@ -47,6 +49,7 @@ class SingleInstance(QObject):
         self.notified = False
 
     def acquire(self):
+        self.notified = False
         if self.lock.tryLock(0):
             self.owner = True
             QLocalServer.removeServer(self.name)
@@ -56,23 +59,55 @@ class SingleInstance(QObject):
             return True
         if self.lock.error() != QLockFile.LockError.LockFailedError:
             raise RuntimeError("Não foi possível bloquear a pasta de dados do assistente.")
-        client = QLocalSocket()
+        client = QLocalSocket(self)
+        loop = QEventLoop()
+        timer = QTimer()
+        timer.setSingleShot(True)
+        received = bytearray()
+
+        def acknowledge():
+            if client.bytesAvailable():
+                received.extend(bytes(client.readAll()))
+            if b"\n" in received:
+                self.notified = bytes(received).split(b"\n", 1)[0] == b"activated"
+                loop.quit()
+
+        client.connected.connect(lambda: client.write(b"activate\n"))
+        client.readyRead.connect(acknowledge)
+        client.errorOccurred.connect(loop.quit)
+        client.disconnected.connect(acknowledge)
+        client.disconnected.connect(loop.quit)
+        timer.timeout.connect(loop.quit)
+        timer.start(ACTIVATION_TIMEOUT_MS)
         client.connectToServer(self.name)
-        if client.waitForConnected(2000):
-            client.write(b"activate\n")
-            self.notified = client.bytesToWrite() == 0 or client.waitForBytesWritten(1000)
-            client.disconnectFromServer()
+        # Process events until the first instance confirms activation, not merely
+        # until Windows accepts bytes into the outgoing pipe buffer.
+        if not self.notified:
+            loop.exec()
+        timer.stop()
+        client.abort()
+        client.deleteLater()
         return False
 
     def receive(self):
         while self.server.hasPendingConnections():
             client = self.server.nextPendingConnection()
+            received = bytearray()
 
-            def activate(socket=client):
-                if not socket.canReadLine():
+            def activate(socket=client, buffer=received):
+                if socket.property("activationHandled"):
                     return
-                if bytes(socket.readLine()).strip() == b"activate":
+                buffer.extend(bytes(socket.readAll()))
+                if len(buffer) > 64:
+                    socket.abort()
+                    return
+                if b"\n" not in buffer:
+                    return
+                socket.setProperty("activationHandled", True)
+                if bytes(buffer).split(b"\n", 1)[0] == b"activate":
                     self.activation_requested.emit()
+                    socket.write(b"activated\n")
+                    socket.flush()
                 socket.disconnectFromServer()
 
             client.readyRead.connect(activate)

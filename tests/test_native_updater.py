@@ -79,3 +79,27 @@ def test_other_running_copy_prevents_install_without_terminating_it(native_updat
     finally:
         child.terminate()  # Only the isolated test process created above.
         child.wait(timeout=5)
+
+
+def test_locked_image_is_rejected_before_installing(native_updater, tmp_path):
+    import ctypes
+    from ctypes import wintypes
+    from pathlib import Path
+
+    data = manifest(tmp_path)
+    target = Path(data["executable"])
+    target.write_bytes(b"not executable")
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                                  ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel.CreateFileW(str(target), 0x80000000, 1, None, 3, 0x80, None)
+    assert handle != ctypes.c_void_p(-1).value
+    try:
+        result, status = invoke(native_updater, tmp_path, data)
+        assert result.returncode == 1
+        assert "ainda está em uso" in status["message"]
+        assert not (tmp_path / "install.log").exists()
+    finally:
+        kernel.CloseHandle(handle)

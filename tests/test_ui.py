@@ -102,12 +102,67 @@ def test_only_one_instance_owns_lock_and_second_activates_first(app, tmp_path):
     try:
         assert first.acquire()
         assert not second.acquire()
+        assert second.notified
         wait_until(app, lambda: activated.called)
+        activated.assert_called_once()
         first.close()
         assert second.acquire()
     finally:
         first.close()
         second.close()
+
+
+def test_unacknowledged_activation_does_not_start_a_second_instance(app, tmp_path, monkeypatch):
+    from assistant.ui.single_instance import SingleInstance
+
+    monkeypatch.setattr("assistant.ui.single_instance.ACTIVATION_TIMEOUT_MS", 30)
+    first, second = SingleInstance(tmp_path), SingleInstance(tmp_path)
+    try:
+        assert first.acquire()
+        first.server.newConnection.disconnect(first.receive)
+        assert not second.acquire()
+        assert not second.owner
+        assert not second.notified
+        assert first.owner
+    finally:
+        second.close()
+        first.close()
+
+
+def test_activation_between_real_processes(app, tmp_path):
+    import subprocess
+    import sys
+
+    from assistant.ui.single_instance import SingleInstance
+
+    owner = SingleInstance(tmp_path)
+    activated = Mock()
+    owner.activation_requested.connect(activated)
+    child = None
+    try:
+        assert owner.acquire()
+        script = (
+            "import sys; from PySide6.QtCore import QCoreApplication; "
+            "from assistant.ui.single_instance import SingleInstance; "
+            "app=QCoreApplication([]); guard=SingleInstance(sys.argv[1]); "
+            "owned=guard.acquire(); print(str(owned)+','+str(guard.notified), flush=True); "
+            "guard.close()"
+        )
+        child = subprocess.Popen(
+            [sys.executable, "-c", script, str(tmp_path)], stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        wait_until(app, lambda: child.poll() is not None)
+        stdout, stderr = child.communicate(timeout=3)
+        assert child.returncode == 0, stderr
+        assert stdout.strip() == "False,True"
+        activated.assert_called_once()
+    finally:
+        if child is not None and child.poll() is None:
+            child.terminate()  # Only the isolated client process created by this test.
+            child.wait(timeout=5)
+        owner.close()
 
 
 def test_sonic_requires_cloud_choice_before_creating_worker(make_window):
@@ -222,11 +277,14 @@ def test_stop_while_confirmation_is_pending(app, make_window):
 def test_exit_waits_for_worker_before_closing(app, make_window):
     backend = Mock()
     window = make_window(worker_factory=factory_with_backend(backend))
+    ready = Mock()
+    window.exit_ready.connect(ready)
     submit(window, "close notepad")
     wait_until(app, lambda: window.confirmation_box is not None)
     window.request_exit()
     wait_until(app, lambda: window.worker is None)
     assert not window.isVisible()
+    ready.assert_called_once()
     assert not backend.mock_calls
 
 

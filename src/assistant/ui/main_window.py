@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QKeySequence, QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -31,6 +31,8 @@ from assistant.ui.worker import TaskWorker
 
 
 class MainWindow(QMainWindow):
+    exit_ready = Signal()
+
     def __init__(
         self,
         settings,
@@ -656,3 +658,5 @@ class MainWindow(QMainWindow):
         if self.tray is not None:
             self.tray.hide()
         event.accept()
+        if self.exiting:
+            self.exit_ready.emit()
