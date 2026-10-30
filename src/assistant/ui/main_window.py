@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStyle,
     QSystemTrayIcon,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -85,17 +86,25 @@ class MainWindow(QMainWindow):
         self.simulation.setToolTip(
             "Simula ferramentas. Bedrock pode consumir créditos se habilitado."
         )
-        options.addWidget(self.cloud)
         options.addWidget(self.simulation)
         self.model_choice = QComboBox()
         self.model_choice.addItem("Modelo principal", False)
         if settings.secondary_model_id:
             self.model_choice.addItem("Modelo alternativo", True)
-        options.addWidget(self.model_choice)
         options.addStretch()
         self.clear_button = QPushButton("Limpar conversa")
         options.addWidget(self.clear_button)
         layout.addLayout(options)
+
+        self.mode_tabs = QTabWidget()
+        self.local_page, self.aws_page = QWidget(), QWidget()
+        local_layout, aws_layout = QVBoxLayout(self.local_page), QVBoxLayout(self.aws_page)
+        self.mode_tabs.addTab(self.local_page, "Uso local")
+        self.mode_tabs.addTab(self.aws_page, "AWS")
+        layout.addWidget(self.mode_tabs)
+        local_notice = QLabel("Comandos locais · transcrição com Whisper · leitura com Piper")
+        local_notice.setWordWrap(True)
+        local_layout.addWidget(local_notice)
 
         voice_row = QHBoxLayout()
         self.language = QComboBox()
@@ -119,10 +128,10 @@ class MainWindow(QMainWindow):
         voice_row.addWidget(self.speak_button)
         voice_row.addWidget(self.read_responses)
         voice_row.addStretch()
-        layout.addLayout(voice_row)
+        local_layout.addLayout(voice_row)
 
         wake_row = QHBoxLayout()
-        self.speech_choice = QComboBox()
+        self.speech_choice = QComboBox(self)
         self.speech_choice.addItem("Voz local · Whisper/Piper", "local")
         self.speech_choice.addItem("Nova 2 Sonic · áudio na AWS", "sonic")
         self.speech_choice.setCurrentIndex(self.speech_choice.findData(settings.speech_provider))
@@ -130,7 +139,7 @@ class MainWindow(QMainWindow):
             "Sonic envia a gravação à AWS e pode executar comandos após sua fala. "
             "Simular ações preserva as ferramentas sem efeitos reais; áudio AWS é cobrado."
         )
-        wake_row.addWidget(self.speech_choice)
+        self.speech_choice.hide()
         self.wake_button = QPushButton("Ativar escuta")
         self.wake_button.setToolTip(
             "Experimental: reconhece Assistente/Assistant localmente. "
@@ -139,9 +148,33 @@ class MainWindow(QMainWindow):
         self.microphone_label = QLabel("Microfone desligado")
         self.microphone_label.setAccessibleName("Estado do microfone")
         wake_row.addWidget(self.wake_button)
-        wake_row.addWidget(self.microphone_label)
         wake_row.addStretch()
-        layout.addLayout(wake_row)
+        local_layout.addLayout(wake_row)
+        local_layout.addStretch()
+
+        aws_options = QHBoxLayout()
+        aws_options.addWidget(self.cloud)
+        aws_options.addWidget(self.model_choice)
+        aws_options.addStretch()
+        aws_layout.addLayout(aws_options)
+        aws_notice = QLabel(
+            "Texto com Bedrock · voz com Nova 2 Sonic. O áudio é enviado à AWS e a resposta "
+            "falada toca automaticamente. A nuvem pode consumir créditos, inclusive em simulação."
+        )
+        aws_notice.setWordWrap(True)
+        aws_layout.addWidget(aws_notice)
+        sonic_row = QHBoxLayout()
+        self.sonic_record_button = QPushButton("Gravar comando · Sonic")
+        self.sonic_wake_button = QPushButton("Ativar escuta · Sonic")
+        self.sonic_wake_button.setToolTip(
+            "A palavra Assistente é detectada pelo Whisper local; o comando segue para o Sonic."
+        )
+        sonic_row.addWidget(self.sonic_record_button)
+        sonic_row.addWidget(self.sonic_wake_button)
+        sonic_row.addStretch()
+        aws_layout.addLayout(sonic_row)
+        layout.addWidget(self.microphone_label)
+        self.mode_tabs.setCurrentIndex(1 if settings.speech_provider == "sonic" else 0)
 
         self.transcript = QTextEdit()
         self.transcript.setReadOnly(True)
@@ -172,7 +205,9 @@ class MainWindow(QMainWindow):
         self.state_label = QLabel("Pronto · Esc interrompe a tarefa")
         layout.addWidget(self.state_label)
         self.usage_label = QLabel()
-        layout.addWidget(self.usage_label)
+        self.usage_label.setWordWrap(True)
+        aws_layout.addWidget(self.usage_label)
+        aws_layout.addStretch()
         self.setCentralWidget(content)
         self.force_offline = force_offline
 
@@ -183,6 +218,10 @@ class MainWindow(QMainWindow):
         self.record_button.clicked.connect(self.record_command)
         self.speak_button.clicked.connect(self.speak_response)
         self.wake_button.clicked.connect(self.toggle_wake)
+        self.sonic_record_button.clicked.connect(lambda: self.start_sonic())
+        self.sonic_wake_button.clicked.connect(self.toggle_wake)
+        self.mode_tabs.currentChanged.connect(self.mode_changed)
+        self.speech_choice.currentIndexChanged.connect(self.mode_tabs.setCurrentIndex)
         stop_action = QAction(self)
         stop_action.setShortcut(QKeySequence(Qt.Key.Key_Escape))
         stop_action.triggered.connect(self.stop_task)
@@ -204,6 +243,17 @@ class MainWindow(QMainWindow):
             self.update_usage(*tracker.summary())
         finally:
             tracker.close()
+        self.mode_changed(self.mode_tabs.currentIndex())
+
+    @Slot(int)
+    def mode_changed(self, index):
+        self.speech_choice.setCurrentIndex(index)
+        self.command.setPlaceholderText(
+            "Comando local · sem envio à AWS…" if index == 0
+            else "Comando de texto · Bedrock quando habilitado…"
+        )
+        if self.tray is not None:
+            self.tray.update_controls()
 
     def append_message(self, author, text):
         # Plain text: model output cannot inject HTML, links, or image loads.
@@ -214,6 +264,7 @@ class MainWindow(QMainWindow):
         self.transcript.ensureCursorVisible()
 
     def set_busy(self, busy):
+        self.mode_tabs.tabBar().setEnabled(not busy and not self.exiting)
         self.command.setEnabled(not busy and not self.exiting)
         self.send_button.setEnabled(not busy and not self.exiting)
         self.stop_button.setEnabled(busy and self.update_dialog is None and not self.exiting)
@@ -224,15 +275,20 @@ class MainWindow(QMainWindow):
         self.language.setEnabled(not busy and not self.exiting)
         self.read_responses.setEnabled(not busy and not self.exiting)
         self.speech_choice.setEnabled(not busy and not self.exiting)
+        self.sonic_record_button.setEnabled(not busy and not self.exiting)
         self.model_choice.setEnabled(not busy and not self.exiting)
         self.settings_action.setEnabled(not busy and not self.exiting)
         self.forget_action.setEnabled(not busy and not self.exiting)
         self.update_action.setEnabled(not busy and not self.exiting)
         self.wake_button.setEnabled(
-            (not busy or self.worker_kind == "wake" or self.sonic_wake) and not self.exiting
+            (not busy or self.worker_kind == "wake") and not self.exiting
         )
         self.wake_button.setText(
-            "Parar escuta" if self.worker_kind == "wake" or self.sonic_wake else "Ativar escuta"
+            "Parar escuta" if self.worker_kind == "wake" else "Ativar escuta"
+        )
+        self.sonic_wake_button.setEnabled((not busy or self.sonic_wake) and not self.exiting)
+        self.sonic_wake_button.setText(
+            "Parar escuta · Sonic" if self.sonic_wake else "Ativar escuta · Sonic"
         )
         if self.tray is not None:
             self.tray.update_controls()
@@ -284,8 +340,9 @@ class MainWindow(QMainWindow):
         self.append_message("Você", text)
         self.command.clear()
         settings = select_model(
-            replace(self.settings, cloud_enabled=self.cloud.isChecked()),
-            self.model_choice.currentData(),
+            replace(self.settings, cloud_enabled=self.cloud.isChecked()
+                    and self.mode_tabs.currentIndex() == 1),
+            self.mode_tabs.currentIndex() == 1 and self.model_choice.currentData(),
         )
         self.worker = self.worker_factory(
             text, settings, self.database_path, self.simulation.isChecked(), parent=self
@@ -306,6 +363,7 @@ class MainWindow(QMainWindow):
         self.last_response = text
         if (
             self.read_responses.isChecked()
+            and self.mode_tabs.currentIndex() == 0
             and self.worker_kind == "task"
             and not self.exiting
             and self.worker is not None
@@ -519,6 +577,7 @@ class MainWindow(QMainWindow):
             return
         self.worker.cancelled.set()
         self.wake_button.setEnabled(False)
+        self.sonic_wake_button.setEnabled(False)
         if self.tray is not None:
             self.tray.update_controls()
         if self.pending_confirmation is not None:

@@ -5,6 +5,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Web.Script.Serialization;
 
 // Small Windows helper. No PowerShell, shell commands or changes to execution policy.
@@ -36,8 +37,40 @@ internal static class AssistantUpdater
                           new UTF8Encoding(false));
     }
 
+    private static bool OtherInstance(string executable)
+    {
+        foreach (Process candidate in Process.GetProcessesByName("AssistantDesktop"))
+        using (candidate)
+        {
+            try
+            {
+                if (Same(candidate.MainModule.FileName, executable)) return true;
+            }
+            catch (InvalidOperationException) { } // Process exited during enumeration.
+            catch (System.ComponentModel.Win32Exception)
+            {
+                if (candidate.SessionId == Process.GetCurrentProcess().SessionId)
+                    throw new InvalidOperationException("Não foi possível verificar outra cópia do assistente.");
+            }
+        }
+        return false;
+    }
+
+    private static void WaitForAllInstances(string executable)
+    {
+        Stopwatch timer = Stopwatch.StartNew();
+        while (OtherInstance(executable))
+        {
+            if (timer.ElapsedMilliseconds >= 10000)
+                throw new InvalidOperationException("Outra cópia do assistente continua aberta. " +
+                    "Feche todas as cópias pelo menu Aplicativo → Sair antes de atualizar.");
+            Thread.Sleep(100);
+        }
+    }
+
     private static void Restart(string executable)
     {
+        if (OtherInstance(executable)) return;
         Process.Start(new ProcessStartInfo(executable, "--gui") {
             UseShellExecute = false, CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden
@@ -47,7 +80,7 @@ internal static class AssistantUpdater
     [STAThread]
     private static int Main(string[] args)
     {
-        string parameters = null, status = null, executable = null;
+        string parameters = null, status = null, executable = null, marker = null;
         bool applicationClosed = false;
         try
         {
@@ -82,11 +115,17 @@ internal static class AssistantUpdater
             {
                 if (previous != null && !Same(previous.MainModule.FileName, executable))
                     throw new InvalidDataException("O processo informado não é o assistente.");
+                marker = Path.Combine(cache, "active-update.json");
+                using (Process updater = Process.GetCurrentProcess())
+                    File.WriteAllText(marker, Json.Serialize(new {
+                        process = updater.Id, executable = updater.MainModule.FileName
+                    }), new UTF8Encoding(false));
                 File.WriteAllText(ready, "ready");
                 if (previous != null && !previous.WaitForExit(120000))
                     throw new TimeoutException("O aplicativo não encerrou a tempo. Nenhum processo foi forçado a fechar.");
             }
             applicationClosed = true;
+            WaitForAllInstances(executable);
 
             using (var source = File.OpenRead(installer))
             using (var sha = SHA256.Create())
@@ -104,15 +143,20 @@ internal static class AssistantUpdater
             {
                 installation.WaitForExit();
                 if (installation.ExitCode != 0)
-                    throw new InvalidOperationException("O instalador retornou o código " +
-                        installation.ExitCode + ". Consulte install.log.");
+                    throw new InvalidOperationException(
+                        (installation.ExitCode == 5 ?
+                            "O Windows impediu substituir os arquivos do aplicativo; " +
+                            "eles podem estar em uso por outra instância. " : "") +
+                        "O instalador retornou o código " + installation.ExitCode + ". Consulte install.log.");
             }
             Status(status, true, "Atualização instalada.");
+            File.Delete(marker);
             Restart(executable);
             return 0;
         }
         catch (Exception error)
         {
+            if (marker != null) { try { File.Delete(marker); } catch { } }
             if (status != null)
             {
                 try { Status(status, false, error.Message); } catch { }
@@ -125,6 +169,7 @@ internal static class AssistantUpdater
         }
         finally
         {
+            if (marker != null) { try { File.Delete(marker); } catch { } }
             if (parameters != null)
             {
                 try { File.Delete(parameters); } catch { }

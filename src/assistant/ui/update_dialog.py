@@ -18,6 +18,7 @@ from assistant.updates import (
     check_update,
     current_version,
     download_update,
+    ensure_no_other_instances,
     installed_executable,
     start_install,
 )
@@ -128,7 +129,7 @@ class UpdateDialog(QDialog):
             return
         self.installer = None
         try:
-            installed_executable()
+            ensure_no_other_instances(installed_executable())
         except RuntimeError as exc:
             self.status.setText(str(exc))
             return

@@ -158,8 +158,31 @@ def updater_executable():
     return Path(__file__).with_name("AssistantUpdater.exe")
 
 
+def ensure_no_other_instances(executable):
+    import psutil
+
+    expected = os.path.normcase(os.path.abspath(str(executable)))
+    for process in psutil.process_iter(["pid", "name", "exe"]):
+        if process.info["pid"] == os.getpid():
+            continue
+        if (process.info["name"] or "").casefold() != "assistantdesktop.exe":
+            continue
+        path = process.info["exe"]
+        if path is None:
+            raise RuntimeError(
+                "Não foi possível verificar outra instância do assistente. "
+                "Feche as outras cópias antes de atualizar."
+            )
+        if os.path.normcase(os.path.abspath(path)) == expected:
+            raise RuntimeError(
+                "Há outra cópia desta instalação aberta. Feche-a pelo menu "
+                "Aplicativo → Sair, incluindo a bandeja, e tente atualizar novamente."
+            )
+
+
 def start_install(release, installer, directory):
     executable = installed_executable()
+    ensure_no_other_instances(executable)
     installer = Path(installer).resolve()
     if installer.name != release.name or installer.stat().st_size != release.size:
         raise ValueError("Instalador de atualização inválido.")

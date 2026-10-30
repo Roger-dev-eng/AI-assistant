@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 
@@ -53,3 +54,28 @@ def test_native_helper_rejects_installer_outside_cache(native_updater, tmp_path)
     assert result.returncode == 1
     assert status["success"] is False
     assert not (tmp_path / "ready").exists()
+
+
+def test_other_running_copy_prevents_install_without_terminating_it(native_updater, tmp_path):
+    from pathlib import Path
+
+    data = manifest(tmp_path)
+    source = tmp_path / "FakeApp.cs"
+    source.write_text(
+        'class FakeApp { static void Main() { System.Threading.Thread.Sleep(60000); } }',
+        "utf-8",
+    )
+    compiler = Path(os.environ["SystemRoot"]) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
+    subprocess.run([str(compiler), "/nologo", "/target:winexe", "/platform:x64",
+                    "/out:" + data["executable"], str(source)], check=True)
+    child = subprocess.Popen([data["executable"]], creationflags=subprocess.CREATE_NO_WINDOW)
+    try:
+        result, status = invoke(native_updater, tmp_path, data)
+        assert result.returncode == 1
+        assert "Outra cópia" in status["message"]
+        assert child.poll() is None
+        assert not (tmp_path / "install.log").exists()
+        assert not (tmp_path / "active-update.json").exists()
+    finally:
+        child.terminate()  # Only the isolated test process created above.
+        child.wait(timeout=5)

@@ -4,6 +4,8 @@ Este projeto é um assistente desktop desenvolvido em **Python**, com interface 
 
 A aplicação combina reconhecimento de fala local com **faster-whisper**, leitura de respostas com **Piper** e um modo de voz na AWS com **Amazon Nova 2 Sonic**.
 
+A tela principal separa **Uso local** e **AWS** em duas abas. Abrir o atalho novamente traz a janela existente para frente, mantendo uma única instância desktop por pasta de dados do usuário.
+
 Para baixar o aplicativo: [Instaladores no GitHub Releases](https://github.com/Roger-dev-eng/AI-assistant/releases/latest).
 
 ## Conteúdo
@@ -186,7 +188,7 @@ No modo local, a transcrição fica no campo de comando para revisão antes de c
 
 ### Voz AWS: Nova 2 Sonic
 
-Selecione **Nova 2 Sonic · áudio na AWS** e habilite Bedrock. O Sonic recebe o áudio do comando, interpreta a solicitação e gera a resposta falada. Comandos comuns podem executar sem revisão prévia da transcrição; as confirmações de ações sensíveis continuam sendo exigidas.
+Abra a aba **AWS**, habilite **Permitir Bedrock (AWS)** e use **Gravar comando · Sonic**. O Sonic recebe o áudio do comando, interpreta a solicitação e gera a resposta falada. Comandos comuns podem executar sem revisão prévia da transcrição; as confirmações de ações sensíveis continuam sendo exigidas. Whisper, Piper e leitura local ficam na aba **Uso local**.
 
 A captura termina após uma pausa configurável. Para ativação por palavra, clique em **Ativar escuta** e diga, por exemplo, **“Assistente, abra o Chrome”**. A detecção da palavra acontece localmente e requer o modelo Whisper configurado.
 
@@ -225,6 +227,8 @@ Na versão instalada, abra **Aplicativo → Verificar atualizações**. Após su
 Versões anteriores à **0.3.0** precisam de uma atualização manual inicial para receber esse recurso. A consulta de versões acontece ao abrir a opção no menu.
 
 A versão **0.3.2** substitui o auxiliar PowerShell por um executável nativo, eliminando a dependência da política de scripts. Se uma versão anterior baixar o pacote e mostrar que o Windows não iniciou o atualizador, instale a 0.3.2 manualmente por cima da atual. Não é necessário desinstalar nem alterar as políticas do Windows.
+
+A partir da **0.3.4**, abrir novamente o app ativa a instância já existente. O atualizador verifica outras cópias da mesma instalação e só substitui os arquivos após seu encerramento. Se estiver em uma versão antiga com cópias duplicadas, feche todas pelo menu **Aplicativo → Sair** antes de instalar a atualização. Nenhum processo é encerrado à força.
 
 A distribuição utiliza [GitHub Releases](https://github.com/Roger-dev-eng/AI-assistant/releases). Para publicar uma versão, atualize os metadados em `pyproject.toml` e `packaging/windows.iss`, envie o código e publique a tag `vX.Y.Z`. O GitHub Actions valida a versão, executa os testes, gera o aplicativo, verifica seu diagnóstico e publica instalador, fontes e hashes.
 

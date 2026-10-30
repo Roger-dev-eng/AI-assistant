@@ -60,6 +60,56 @@ def submit(window, text):
     window.submit()
 
 
+def test_local_and_aws_tabs_separate_their_controls(make_window):
+    window = make_window()
+    assert window.mode_tabs.tabText(0) == "Uso local"
+    assert window.mode_tabs.tabText(1) == "AWS"
+    assert window.local_page.isAncestorOf(window.record_button)
+    assert window.local_page.isAncestorOf(window.read_responses)
+    assert window.aws_page.isAncestorOf(window.cloud)
+    assert window.aws_page.isAncestorOf(window.sonic_record_button)
+    assert window.record_button.isVisible()
+    assert not window.sonic_record_button.isVisible()
+    window.mode_tabs.setCurrentIndex(1)
+    assert window.sonic_record_button.isVisible()
+    assert not window.record_button.isVisible()
+    assert window.speech_choice.currentData() == "sonic"
+
+
+def test_local_tab_blocks_cloud_even_with_aws_permission_checked(app, make_window):
+    selected = []
+
+    def factory(*args, **kwargs):
+        selected.append(args[1].cloud_enabled)
+        return TaskWorker(*args, **kwargs, backend_factory=Mock)
+
+    window = make_window(dry_run=True, worker_factory=factory)
+    window.cloud.setChecked(True)
+    submit(window, "Open Chrome")
+    wait_until(app, lambda: window.worker is None)
+    window.mode_tabs.setCurrentIndex(1)
+    submit(window, "Open Chrome")
+    wait_until(app, lambda: window.worker is None)
+    assert selected == [False, True]
+
+
+def test_only_one_instance_owns_lock_and_second_activates_first(app, tmp_path):
+    from assistant.ui.single_instance import SingleInstance
+
+    first, second = SingleInstance(tmp_path), SingleInstance(tmp_path)
+    activated = Mock()
+    first.activation_requested.connect(activated)
+    try:
+        assert first.acquire()
+        assert not second.acquire()
+        wait_until(app, lambda: activated.called)
+        first.close()
+        assert second.acquire()
+    finally:
+        first.close()
+        second.close()
+
+
 def test_sonic_requires_cloud_choice_before_creating_worker(make_window):
     factory = Mock()
     window = make_window(force_offline=True, sonic_worker_factory=factory)

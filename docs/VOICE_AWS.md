@@ -25,8 +25,8 @@ administrador responsável. Os testes do código-fonte passaram no Python 3.12.
    já funciona e escolha a região `us-east-1`.
 4. Em **Voz AWS**, use modelo `amazon.nova-2-sonic-v1:0` e voz `carolina` ou `leo`.
    Em **Voz local**, selecione o provedor Nova 2 Sonic. Salve.
-5. Na janela principal, marque **Permitir Bedrock (AWS)** e selecione
-   **Nova 2 Sonic · áudio na AWS**. Para o primeiro teste, marque **Simular ações**
+5. Na janela principal, abra a aba **AWS** e marque **Permitir Bedrock (AWS)**.
+   Use **Gravar comando · Sonic**. Para o primeiro teste, marque **Simular ações**
    e diga “Olá, responda em português”. A simulação de ferramentas ainda usa
    áudio pago quando Sonic está selecionado.
 
@@ -36,7 +36,7 @@ permissão e disponibilidade regional também podem restringir o acesso.
 
 ## Falar sem clicar para encerrar
 
-**Gravar comando** inicia uma captura; uma pausa de aproximadamente 1,75 segundo
+**Gravar comando · Sonic**, na aba AWS, inicia uma captura; uma pausa de aproximadamente 1,75 segundo
 encerra automaticamente no modo Sonic. O tempo é ajustável nas configurações.
 Para ativação por palavra, clique uma vez em **Ativar escuta** e diga
 “Assistente, abra o Chrome”. A detecção de Assistente/Assistant acontece localmente

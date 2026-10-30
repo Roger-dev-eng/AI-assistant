@@ -1,6 +1,21 @@
 # Validação da entrega Windows
 
-Validado em 29/10/2026, Windows x64 e Python 3.12.14.
+Registros de validação em Windows x64 e Python 3.12.14.
+
+## Atualização 0.3.4 — instância única, abas e arquivos em uso
+
+- Diagnóstico de 30/10/2026: o log da tentativa anterior mostra falha ao substituir
+  `AssistantDesktop.exe` ainda em uso; duas instâncias da instalação estavam abertas.
+- Bloqueio de instância desktop por pasta de dados, com ativação da janela existente
+  por canal local restrito ao usuário. O bloqueio é liberado ao sair.
+- Inicializações durante a atualização são adiadas até o auxiliar reabrir o app.
+- Verificação de outras cópias antes do download e da instalação. O auxiliar espera
+  todas as instâncias da mesma instalação e não reinicia uma cópia extra ao falhar.
+- Abas Uso local/AWS separam controles, leitura e voz. O envio de texto na aba local
+  força a nuvem desabilitada, independentemente da permissão preservada na aba AWS.
+- Novos testes no Actions cobrem ativação de instância, separação de abas, ausência
+  de chamadas AWS no modo local e instalador bloqueado por um processo de teste.
+  Nenhum processo real do usuário foi encerrado nesta alteração.
 
 ## Correção 0.3.3 — fim da resposta e estados da interação
 

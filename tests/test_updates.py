@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import os
 from dataclasses import replace
 from threading import Event
 from unittest.mock import Mock, patch
@@ -13,6 +14,7 @@ from assistant.updates import (
     RELEASES_URL,
     check_update,
     download_update,
+    ensure_no_other_instances,
     safe_url,
     start_install,
 )
@@ -104,6 +106,25 @@ def test_no_releases_is_handled_without_error():
     def opener(url):
         raise HTTPError(url, 404, "Not Found", {}, None)
     assert check_update("0.3.0", opener) is None
+
+
+def test_second_copy_blocks_update_before_installer_launch(tmp_path):
+    target = tmp_path / "AssistantDesktop.exe"
+    same_copy = Mock(info={"pid": os.getpid() + 1, "name": target.name, "exe": str(target)})
+    with patch("psutil.process_iter", return_value=[same_copy]):
+        with pytest.raises(RuntimeError, match="outra cópia"):
+            ensure_no_other_instances(target)
+
+
+def test_current_process_and_other_installations_do_not_block_update(tmp_path):
+    target = tmp_path / "AssistantDesktop.exe"
+    copies = [
+        Mock(info={"pid": os.getpid(), "name": target.name, "exe": str(target)}),
+        Mock(info={"pid": os.getpid() + 1, "name": target.name,
+                   "exe": str(tmp_path / "other" / target.name)}),
+    ]
+    with patch("psutil.process_iter", return_value=copies):
+        ensure_no_other_instances(target)
 
 
 def test_installer_is_rechecked_before_launch_and_helper_receives_data(tmp_path, monkeypatch):
