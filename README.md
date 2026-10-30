@@ -1,17 +1,12 @@
 # Assistente de IA para Windows
 
-Este projeto é um assistente desktop desenvolvido em **Python**, com interface em **PySide6** e integração com o **Amazon Bedrock**. Ele permite controlar ações do Windows por texto ou voz, executar comandos locais e usar IA para interpretar solicitações em português e inglês.
-
-A aplicação combina reconhecimento de fala local com **faster-whisper**, leitura de respostas com **Piper** e um modo de voz na AWS com **Amazon Nova 2 Sonic**.
-
-A tela principal separa **Uso local** e **AWS** em duas abas. Abrir o atalho novamente traz a janela existente para frente, mantendo uma única instância desktop por pasta de dados do usuário.
+Este projeto é um assistente desktop desenvolvido em **Python**, com interface em **PySide6** e integração com o **Amazon Bedrock**. Ele permite controlar ações do Windows por texto ou voz, executar comandos locais e usar IA para interpretar solicitações em português e inglês. A aplicação combina reconhecimento de fala local com **faster-whisper**, leitura de respostas com **Piper** e um modo de voz na AWS com **Amazon Nova 2 Sonic**. A tela principal separa **Uso local** e **AWS** em duas abas. Abrir o atalho novamente traz a janela existente para frente, mantendo uma única instância desktop por pasta de dados do usuário.
 
 Para baixar o aplicativo: [Instaladores no GitHub Releases](https://github.com/Roger-dev-eng/AI-assistant/releases/latest).
 
 ## Conteúdo
 
 - [Descrição](#descrição)
-- [Objetivo do projeto](#objetivo-do-projeto)
 - [Funcionalidades](#funcionalidades)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Explicação dos principais componentes](#explicação-dos-principais-componentes)
@@ -32,12 +27,6 @@ Para baixar o aplicativo: [Instaladores no GitHub Releases](https://github.com/R
 O assistente oferece uma janela de conversa para enviar comandos, acompanhar respostas, revisar transcrições e confirmar ações sensíveis. Também pode permanecer na bandeja do Windows e receber comandos após a ativação pela palavra **Assistente** ou **Assistant**.
 
 Comandos conhecidos são tratados localmente. Quando o Bedrock está habilitado, solicitações que precisam de interpretação podem ser enviadas à IA, que utiliza um catálogo definido de ferramentas para interagir com o sistema.
-
-## Objetivo do projeto
-
-Criar um assistente pessoal para Windows que facilite tarefas do dia a dia por linguagem natural, combinando automação local, inteligência artificial e interação por voz.
-
-O projeto também busca manter controle sobre as ações executadas, o envio de dados à nuvem e o consumo estimado dos serviços da AWS.
 
 ## Funcionalidades
 
@@ -172,8 +161,6 @@ MONTHLY_BUDGET_USD=5
 MAX_CLOUD_REQUESTS_PER_DAY=100
 ```
 
-Não coloque chaves de acesso no `.env` nem no repositório. Confira as permissões do perfil, a disponibilidade do modelo e os custos na sua conta. Há um exemplo de política em [docs/aws-policy.example.json](docs/aws-policy.example.json).
-
 ### Voz local: faster-whisper e Piper
 
 Informe os caminhos dos modelos locais nas configurações ou no `.env`:
@@ -293,18 +280,6 @@ O projeto também inclui avaliação de comandos em `scripts/evaluate_model.py` 
 | **pytest e Ruff** | Testes automatizados e análise do código |
 | **PyInstaller e Inno Setup** | Empacotamento e instalador Windows |
 | **GitHub Actions e Releases** | Validação e distribuição das versões |
-
-## O que foi aprendido
-
-O desenvolvimento deste projeto reúne práticas de:
-
-- Integração de modelos de IA com ferramentas de automação.
-- Separação entre comandos locais e solicitações processadas na nuvem.
-- Uso de workers para executar tarefas sem bloquear a interface desktop.
-- Captura, transcrição e síntese de voz com componentes locais e serviços AWS.
-- Validação de ações, confirmações e controle de consumo estimado.
-- Persistência local de preferências e contexto opcional.
-- Empacotamento de aplicações Python e distribuição automatizada pelo GitHub.
 
 ## Documentação complementar
 
