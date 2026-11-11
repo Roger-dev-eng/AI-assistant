@@ -11,7 +11,9 @@ from docx import Document
 from assistant.ai.bedrock_provider import BedrockProvider
 from assistant.cloud.usage_tracker import UsageTracker
 from assistant.config import Settings
+from assistant.core.action_executor import ActionExecutor
 from assistant.core.intent_router import IntentRouter
+from assistant.core.orchestrator import Orchestrator
 from assistant.core.research import ResearchManager, run_research
 from assistant.storage.tasks import TaskStore
 from assistant.tools.documents import create_document
@@ -54,6 +56,7 @@ def test_research_has_separate_context_and_only_reports_completion_after_file_ex
     assert task["status"] == "completed"
     assert Document(task["output_path"]).paragraphs[0].text == "Energia solar"
     assert factory.call_args.kwargs["tool_names"] == ()
+    assert "EVIDENCIA_INSUFICIENTE" in provider.system
     assert factory.call_args.args[0].max_output_tokens > settings.max_output_tokens
     assert settings.max_output_tokens == 512
 
@@ -122,6 +125,33 @@ def test_research_command_is_one_independent_task():
     assert len(actions) == 1
     assert actions[0].name == "start_research_report"
     assert actions[0].arguments["pages"] == 1
+
+
+def test_local_report_asks_for_missing_city_before_any_action():
+    backend, provider = Mock(), Mock()
+    orchestrator = Orchestrator(ActionExecutor(backend, Mock()), provider)
+    answer = orchestrator.run("Pesquise as causas das enchentes na minha cidade e gere um relatório Word")
+    assert "Qual é a cidade e o estado?" in answer
+    backend.start_research_report.assert_not_called()
+    provider.converse.assert_not_called()
+
+
+@pytest.mark.parametrize("text", ["Sem referências.", "Citação inventada [2].", "EVIDENCIA_INSUFICIENTE"])
+def test_research_does_not_save_report_without_supported_citation_numbers(tmp_path, text):
+    store = TaskStore(tmp_path / "usage.sqlite3")
+    identifier = store.create("Enchentes em Recife", "Relatório", 1)
+    browser = Mock()
+    browser.read_search_results.return_value = json.dumps({"untrusted_search_results": [
+        {"title": "Fonte", "url": "https://example.org/article"},
+    ]})
+    provider = Mock(client=None, last_stop_reason="end_turn")
+    provider.converse.return_value = {"content": [{"text": text}]}
+    writer = Mock()
+    run_research(identifier, store, replace(Settings(), cloud_enabled=True), Event(), browser=browser,
+                 reader=lambda url, cancelled: {"url": url, "text": "Trecho da fonte."},
+                 writer=writer, provider_factory=Mock(return_value=provider))
+    writer.assert_not_called()
+    assert store.get(identifier)["status"] == "failed"
 
 
 def test_resume_research_requires_unfinished_inactive_task_and_preserves_original(tmp_path):

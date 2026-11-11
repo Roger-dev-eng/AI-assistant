@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "assistant-desktop"
-version = "0.3.15"
+version = "0.3.16"
 description = "Assistente híbrido para Windows em português e inglês"
 requires-python = ">=3.12"
 dependencies = ["boto3>=1.35", "jsonschema>=4.23", "python-dotenv>=1.0"]
@@ -26,7 +26,7 @@ assistant = "assistant.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-assistant = ["ai/prompts/*.txt"]
+assistant = ["ai/prompts/*.txt", "ai/skills/research-report/SKILL.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

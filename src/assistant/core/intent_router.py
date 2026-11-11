@@ -19,6 +19,13 @@ class Action:
     arguments: dict = field(default_factory=dict)
 
 
+def research_clarification(topic):
+    if re.search(r"\b(?:minha|nossa|my|our)\s+(?:cidade|municipio|city)\b", normalize(topic)):
+        return ("Qual é a cidade e o estado? Repita o pedido com o local, por exemplo: "
+                "“Pesquise as causas das enchentes em Recife, Pernambuco, e gere um relatório Word.”")
+    return None
+
+
 APPS = {
     "chrome": "chrome",
     "google chrome": "chrome",

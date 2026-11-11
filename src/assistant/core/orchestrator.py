@@ -1,6 +1,6 @@
 import json
 
-from assistant.core.intent_router import Action, IntentRouter
+from assistant.core.intent_router import Action, IntentRouter, research_clarification
 from assistant.tools.registry import validate
 
 
@@ -29,6 +29,11 @@ class Orchestrator:
         if local is not None:
             if len(local) > 10:
                 raise ValueError("Too many local actions in one task.")
+            for action in local:
+                if action.name == "start_research_report":
+                    clarification = research_clarification(action.arguments["topic"])
+                    if clarification:
+                        return clarification
             outputs = self.executor.execute_plan(local)
             formatted = []
             for action, output in zip(local, outputs):
